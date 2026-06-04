@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { LogoField, LogoWatermark, LogoOrbit } from './LogoMotif.jsx';
 
 export default function ClosingCTA() {
   return (
@@ -14,8 +15,14 @@ export default function ClosingCTA() {
         {/* Dot grid */}
         <div className="pointer-events-none absolute inset-0 bg-dots opacity-30 [mask-image:radial-gradient(ellipse_at_center,black_30%,transparent_75%)]" />
 
+        {/* Brand motif layers */}
+        <LogoField density={0.7} />
+        <LogoWatermark corner="bottom-right" />
+        <LogoWatermark corner="top-left" />
+
         <div className="relative">
-          <span className="eyebrow">Ready when you are</span>
+          <LogoOrbit size={44} className="mx-auto !h-24 !w-24" />
+          <span className="eyebrow mt-4">Ready when you are</span>
           <h2 className="mt-6 text-4xl font-bold leading-[1.05] tracking-tight text-white sm:text-5xl lg:text-6xl">
             Transform Waiting{' '}
             <span className="bg-gradient-to-r from-primary via-blue-400 to-secondary bg-clip-text text-transparent">

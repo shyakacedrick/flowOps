@@ -2,12 +2,24 @@ import { Link } from 'react-router-dom';
 import DashboardMock from './DashboardMock.jsx';
 import { motion } from 'framer-motion';
 import { ease, staggerContainer, staggerItem } from '../animations/motion';
+import { LogoField, LogoOrbit } from './LogoMotif.jsx';
+import { Stethoscope, Scissors, UtensilsCrossed, Landmark, ArrowUpRight } from 'lucide-react';
+
+const WISHLIST = [
+  { label: 'Clinics', icon: Stethoscope },
+  { label: 'Salons', icon: Scissors },
+  { label: 'Restaurants', icon: UtensilsCrossed },
+  { label: 'Banks', icon: Landmark },
+];
 
 export default function Hero() {
   return (
     <section id="hero" className="relative overflow-hidden bg-radial pt-40 lg:pt-20">
       {/* Grid backdrop */}
       <div className="pointer-events-none absolute inset-0 bg-grid-faint [background-size:48px_48px] opacity-40 [mask-image:radial-gradient(ellipse_at_center,black_30%,transparent_75%)]" />
+
+      {/* Ambient logo field (cosmetic only) */}
+      <LogoField />
 
       <div className="section grid items-center gap-16 lg:grid-cols-12 lg:gap-10">
         {/* Left */}
@@ -72,19 +84,40 @@ export default function Hero() {
             </motion.div>
           </motion.div>
 
-          {/* trust strip */}
-          <motion.div variants={staggerItem} className="mt-12 flex flex-wrap items-center gap-x-8 gap-y-3 text-xs text-slate-500">
-            <span className="uppercase tracking-widest">Trusted by</span>
-            {['Clarity Clinics', 'NorthBank', 'Lumen Salons', 'Forge Diner'].map(
-              (n) => (
-                <span
-                  key={n}
-                  className="font-semibold text-slate-400/80 transition hover:text-slate-200"
+          {/* "Who we hope to work with" — honest pre-launch wishlist */}
+          <motion.div variants={staggerItem} className="mt-20">
+            <div className="flex items-center gap-3">
+              <LogoOrbit size={18} className="!h-9 !w-9" />
+              <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.22em] text-slate-500">
+                <span>Who we hope to work with</span>
+              </div>
+              <div className="hidden h-px flex-1 bg-gradient-to-r from-white/10 via-white/5 to-transparent sm:block" />
+            </div>
+
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              {WISHLIST.map(({ label, icon: Icon }, i) => (
+                <motion.span
+                  key={label}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5, ease: ease.out, delay: 0.4 + i * 0.07 }}
+                  className="group relative inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-white/[0.08] bg-white/[0.03] px-2.5 py-1 text-[11px] font-medium text-slate-300 backdrop-blur-md transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/40 hover:bg-white/[0.06] hover:text-white"
                 >
-                  {n}
-                </span>
-              )
-            )}
+                  <span className="grid h-4 w-4 place-items-center rounded-full bg-gradient-to-br from-primary/25 to-secondary/15 text-primary">
+                    <Icon className="h-2.5 w-2.5" />
+                  </span>
+                  {label}
+                </motion.span>
+              ))}
+
+              <Link
+                to="/book-demo"
+                className="group inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-1 text-[11px] font-semibold text-primary transition-colors duration-300 hover:text-white"
+              >
+                + you?
+                <ArrowUpRight className="h-3 w-3 transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+              </Link>
+            </div>
           </motion.div>
         </motion.div>
 

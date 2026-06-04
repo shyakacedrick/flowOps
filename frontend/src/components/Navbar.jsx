@@ -10,7 +10,7 @@ import {
   Timer,
   BarChart3,
   Flame,
-  Sparkles,
+  Lightbulb,
   PlayCircle,
   // Solutions — industries
   Stethoscope,
@@ -54,7 +54,7 @@ const PRODUCT_GROUPS = [
     items: [
       { icon: BarChart3, title: 'Analytics Dashboard',  desc: 'KPIs, trends and SLAs at a glance.',           href: '#features' },
       { icon: Flame,     title: 'Peak Hour Detection',  desc: 'Spot demand spikes before they hit.',          href: '#features' },
-      { icon: Sparkles,  title: 'Smart Insights',       desc: 'Actionable recommendations, automatically.',   href: '#insights' },
+      { icon: Lightbulb, title: 'Smart Insights',       desc: 'Actionable recommendations, automatically.',   href: '#insights' },
     ],
   },
 ];

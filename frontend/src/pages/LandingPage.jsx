@@ -16,6 +16,18 @@ import Pricing from '../components/Pricing.jsx';
 import FAQ from '../components/FAQ.jsx';
 import ClosingCTA from '../components/ClosingCTA.jsx';
 import Footer from '../components/Footer.jsx';
+import { LogoDivider, LogoMarquee } from '../components/LogoMotif.jsx';
+import ScrollRail from '../components/ScrollRail.jsx';
+
+const RAIL_SECTIONS = [
+  { id: 'hero', label: 'Intro' },
+  { id: 'rail-features', label: 'Features' },
+  { id: 'rail-insights', label: 'Insights' },
+  { id: 'rail-dashboard', label: 'Dashboard' },
+  { id: 'solutions', label: 'Industries' },
+  { id: 'rail-pricing', label: 'Pricing' },
+  { id: 'cta', label: 'Get Started' },
+];
 
 export default function LandingPage() {
   return (
@@ -26,22 +38,35 @@ export default function LandingPage() {
         <div className="absolute bottom-0 right-0 h-[400px] w-[400px] rounded-full bg-primary/5 blur-[120px]" />
       </div>
 
+      <ScrollRail sections={RAIL_SECTIONS} />
+
       <Navbar />
       <main>
         <Hero />
         <LiveStats />
         <BeforeAfter />
-        <Features />
+        <LogoDivider />
+        <div id="rail-features">
+          <Features />
+        </div>
         <ProductPreview />
-        <InsightsEngine />
-        <SmartInsightsDemo />
-        <LiveDashboard />
+        <div id="rail-insights">
+          <InsightsEngine />
+          <SmartInsightsDemo />
+        </div>
+        <LogoMarquee />
+        <div id="rail-dashboard">
+          <LiveDashboard />
+        </div>
         <HowItWorks />
         <Industries />
         <FutureVision />
+        <LogoDivider />
         <Trust />
         <Testimonial />
-        <Pricing />
+        <div id="rail-pricing">
+          <Pricing />
+        </div>
         <FAQ />
         <ClosingCTA />
       </main>
