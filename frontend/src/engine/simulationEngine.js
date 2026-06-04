@@ -297,46 +297,54 @@ export class SimulationEngine {
   // -------------------------------------------------------------------------
 
   _tick = () => {
-    const now = Date.now();
-    this._lastTickAt = now;
+    try {
+      const now = Date.now();
+      this._lastTickAt = now;
 
-    // 1) Sim-clock advance + history roll (always).
-    let core = this._coreSlice(this._snapshot);
-    core = reducer(core, { type: EVENT_TYPES.TICK });
-    // Apply core tick WITHOUT logging activity (TICK isn't an interesting event).
-    let nextPatch = { ...core };
+      // 1) Sim-clock advance + history roll (always).
+      let core = this._coreSlice(this._snapshot);
+      core = reducer(core, { type: EVENT_TYPES.TICK });
+      // Apply core tick WITHOUT logging activity (TICK isn't an interesting event).
+      let nextPatch = { ...core };
 
-    // 2) Scheduled engine event (queue arrival/serve/skip/idle).
-    if (now >= this._nextEventAt) {
-      const evType = pickEvent(core);
-      const nextCore = reducer(core, { type: evType });
-      const activity = decorateActivity(nextCore.lastEvent);
-      core = nextCore;
-      nextPatch = {
-        ...nextPatch,
-        ...core,
-        activityLog: activity
-          ? [activity, ...this._snapshot.activityLog].slice(0, ACTIVITY_MAX)
-          : this._snapshot.activityLog,
-        lastUpdatedAt: now,
-      };
-      this._nextEventAt = now + nextEventDelay();
+      // 2) Scheduled engine event (queue arrival/serve/skip/idle).
+      if (now >= this._nextEventAt) {
+        const evType = pickEvent(core);
+        const nextCore = reducer(core, { type: evType });
+        const activity = decorateActivity(nextCore.lastEvent);
+        core = nextCore;
+        nextPatch = {
+          ...nextPatch,
+          ...core,
+          activityLog: activity
+            ? [activity, ...this._snapshot.activityLog].slice(0, ACTIVITY_MAX)
+            : this._snapshot.activityLog,
+          lastUpdatedAt: now,
+        };
+        this._nextEventAt = now + nextEventDelay();
+      }
+
+      // 3) AI insight rotation.
+      if (now >= this._nextInsightAt) {
+        const nextIdx = (this._snapshot.insight.index + 1) % INSIGHTS.length;
+        nextPatch.insight = { ...INSIGHTS[nextIdx], index: nextIdx, total: INSIGHTS.length };
+        this._nextInsightAt = now + randMs(INSIGHT_MIN_MS, INSIGHT_MAX_MS);
+      }
+
+      // 4) Subsystem health drift.
+      if (now >= this._nextDriftAt) {
+        nextPatch.subsystems = driftSubsystems(this._snapshot.subsystems);
+        this._nextDriftAt = now + randMs(DRIFT_MIN_MS, DRIFT_MAX_MS);
+      }
+
+      this._merge(nextPatch);
+    } catch (err) {
+      // Stop the engine to prevent further ticks against corrupted state.
+      this.stop();
+      if (typeof console !== 'undefined') {
+        console.error('[SimulationEngine] Fatal tick error — engine stopped:', err);
+      }
     }
-
-    // 3) AI insight rotation.
-    if (now >= this._nextInsightAt) {
-      const nextIdx = (this._snapshot.insight.index + 1) % INSIGHTS.length;
-      nextPatch.insight = { ...INSIGHTS[nextIdx], index: nextIdx, total: INSIGHTS.length };
-      this._nextInsightAt = now + randMs(INSIGHT_MIN_MS, INSIGHT_MAX_MS);
-    }
-
-    // 4) Subsystem health drift.
-    if (now >= this._nextDriftAt) {
-      nextPatch.subsystems = driftSubsystems(this._snapshot.subsystems);
-      this._nextDriftAt = now + randMs(DRIFT_MIN_MS, DRIFT_MAX_MS);
-    }
-
-    this._merge(nextPatch);
   };
 }
 

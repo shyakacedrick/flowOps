@@ -28,8 +28,9 @@ import {
   Maximize2,
   Inbox,
 } from 'lucide-react';
-import { useFlowOps } from '../engine/FlowOpsProvider.jsx';
+import { useSimulationSlice } from '../engine/SimulationProvider.jsx';
 import { EVENT_TYPES } from '../engine/flowOpsEngine.js';
+import { formatAgo } from '../utils/formatTime.js';
 import { ease } from '../animations/motion';
 import EmptyState from './EmptyState.jsx';
 
@@ -93,16 +94,6 @@ const TONE_STYLES = {
 //  Helpers
 // ---------------------------------------------------------------------------
 
-function formatAgo(ms, now) {
-  const delta = Math.max(0, Math.floor((now - ms) / 1000));
-  if (delta < 2)  return 'just now';
-  if (delta < 60) return `${delta}s ago`;
-  const m = Math.floor(delta / 60);
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  return `${h}h ago`;
-}
-
 let _entryId = 0;
 const nextId = () => ++_entryId;
 
@@ -114,7 +105,11 @@ export default function LiveActivityFeed({
   limit = 6,
   className = '',
 }) {
-  const state = useFlowOps();
+  // Subscribe only to the slices the feed needs — avoids full re-render on every tick.
+  const lastEvent    = useSimulationSlice((s) => s.lastEvent);
+  const peakHour     = useSimulationSlice((s) => s.analytics.peakHour);
+  const totalServed  = useSimulationSlice((s) => s.analytics.totalServed);
+  const simTime      = useSimulationSlice((s) => s.simTime);
   const [entries, setEntries] = useState([]);
   const [now, setNow] = useState(() => Date.now());
   const [collapsed, setCollapsed] = useState(false);
@@ -133,7 +128,7 @@ export default function LiveActivityFeed({
   const lastSeenKey = useRef('BOOT-0');
 
   useEffect(() => {
-    const { type, at, ref, name } = state.lastEvent;
+    const { type, at, ref, name } = lastEvent;
     const key = `${type}-${at}-${ref ?? ''}`;
     if (key === lastSeenKey.current) return;
     lastSeenKey.current = key;
@@ -149,15 +144,15 @@ export default function LiveActivityFeed({
       };
       return [entry, ...prev].slice(0, limit);
     });
-  }, [state.lastEvent, limit]);
+  }, [lastEvent, limit]);
 
   // -----------------------------------------------------------------------
   //  Synthetic "system" event: peak detected
   //  Fires once whenever peakHour changes to a real value.
   // -----------------------------------------------------------------------
-  const lastPeakRef = useRef(state.analytics.peakHour);
+  const lastPeakRef = useRef(peakHour);
   useEffect(() => {
-    const peak = state.analytics.peakHour;
+    const peak = peakHour;
     if (peak !== '—' && peak !== lastPeakRef.current) {
       lastPeakRef.current = peak;
       setEntries((prev) => [
@@ -165,7 +160,7 @@ export default function LiveActivityFeed({
         ...prev,
       ].slice(0, limit));
     }
-  }, [state.analytics.peakHour, limit]);
+  }, [peakHour, limit]);
 
   // -----------------------------------------------------------------------
   //  Synthetic "system" event: insight generated
@@ -173,7 +168,7 @@ export default function LiveActivityFeed({
   // -----------------------------------------------------------------------
   const lastInsightServed = useRef(0);
   useEffect(() => {
-    const served = state.analytics.totalServed;
+    const served = totalServed;
     if (served > 0 && served % 12 === 0 && served !== lastInsightServed.current) {
       lastInsightServed.current = served;
       setEntries((prev) => [
@@ -181,22 +176,22 @@ export default function LiveActivityFeed({
         ...prev,
       ].slice(0, limit));
     }
-  }, [state.analytics.totalServed, limit]);
+  }, [totalServed, limit]);
 
   // -----------------------------------------------------------------------
   //  Synthetic "system" event: queue reset
   //  Detected when simTime collapses back to 0 from a positive value.
   // -----------------------------------------------------------------------
-  const lastSimTime = useRef(state.simTime);
+  const lastSimTime = useRef(simTime);
   useEffect(() => {
-    if (lastSimTime.current > 0 && state.simTime === 0) {
+    if (lastSimTime.current > 0 && simTime === 0) {
       setEntries((prev) => [
         { id: nextId(), type: 'QUEUE_RESET', ref: null, at: Date.now() },
         ...prev,
       ].slice(0, limit));
     }
-    lastSimTime.current = state.simTime;
-  }, [state.simTime, limit]);
+    lastSimTime.current = simTime;
+  }, [simTime, limit]);
 
   const hasActivity = entries.length > 0;
 

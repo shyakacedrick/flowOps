@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 /* ─────────────────── Live simulation engine ─────────────────── */
 
@@ -49,8 +49,7 @@ function AnimatedNumber({ value, decimals = 0, duration = 600, suffix = '' }) {
     };
     raf.current = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf.current);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value]);
+  }, [value, duration, decimals]);
 
   return (
     <span className="tabular-nums">
@@ -183,7 +182,8 @@ export default function DashboardMock() {
   }, []);
 
   const nowServing = queue[0];
-  const inQueue = queue.length + rand(18, 22); // simulate broader queue
+  // Memoize so the random offset is stable per queue-length change, not per render.
+  const inQueue = useMemo(() => queue.length + rand(18, 22), [queue.length]);
 
   // Format avg wait as Xm Ys
   const m = Math.floor(avgWait);

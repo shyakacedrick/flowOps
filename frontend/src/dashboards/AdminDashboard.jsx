@@ -11,7 +11,7 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import DashboardShell from './DashboardShell.jsx';
-import { useFlowOps } from '../engine/FlowOpsProvider.jsx';
+import { useSimulationSlice } from '../engine/SimulationProvider.jsx';
 import { useCountUp } from '../hooks/useCountUp.js';
 import { ease } from '../animations/motion.js';
 
@@ -55,12 +55,16 @@ function StatTile({ icon: Icon, label, value, suffix = '', sub }) {
 
 export default function AdminDashboard() {
   const [tab, setTab] = useState('overview');
-  const state = useFlowOps();
+
+  // Subscribe only to the specific fields this component reads.
+  const totalServedSim = useSimulationSlice((s) => s.analytics.totalServed);
+  const queueLength    = useSimulationSlice((s) => s.queue.length);
+  const lastEvent      = useSimulationSlice((s) => s.lastEvent);
 
   // Aggregate platform-wide signals derived from real sim + static tenant book.
   const totalTenants = TENANTS.length;
   const totalLocations = TENANTS.reduce((s, t) => s + t.locations, 0);
-  const totalServed = TENANTS.reduce((s, t) => s + t.served, 0) + state.analytics.totalServed;
+  const totalServed = TENANTS.reduce((s, t) => s + t.served, 0) + totalServedSim;
 
   return (
     <DashboardShell navItems={NAV} activeKey={tab} onNav={setTab}>
@@ -156,7 +160,7 @@ export default function AdminDashboard() {
           <div className="mt-5 rounded-xl border border-primary/20 bg-primary/[0.05] p-3">
             <p className="text-xs font-semibold text-primary">Reference simulation</p>
             <p className="mt-1 text-xs leading-relaxed text-slate-300">
-              Currently <span className="font-mono text-white">{state.queue.length}</span> customers in
+              Currently <span className="font-mono text-white">{queueLength}</span> customers in
               the live reference tenant queue. Useful for validating release builds.
             </p>
           </div>
@@ -172,7 +176,7 @@ export default function AdminDashboard() {
         <ul className="mt-4 space-y-2">
           <AnimatePresence initial={false}>
             <motion.li
-              key={state.lastEvent.type + state.lastEvent.at}
+              key={lastEvent.type + lastEvent.at}
               initial={{ opacity: 0, x: 12 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -12 }}
@@ -181,10 +185,10 @@ export default function AdminDashboard() {
             >
               <span className="text-slate-300">
                 <span className="font-mono text-slate-500">[sim]</span>{' '}
-                {state.lastEvent.type.replace('_', ' ').toLowerCase()}{' '}
-                {state.lastEvent.ref ? <span className="font-mono text-slate-400">{state.lastEvent.ref}</span> : null}
+                {lastEvent.type.replace('_', ' ').toLowerCase()}{' '}
+                {lastEvent.ref ? <span className="font-mono text-slate-400">{lastEvent.ref}</span> : null}
               </span>
-              <span className="font-mono text-slate-500">t+{state.lastEvent.at}m</span>
+              <span className="font-mono text-slate-500">t+{lastEvent.at}m</span>
             </motion.li>
           </AnimatePresence>
           <li className="flex items-center justify-between rounded-lg border border-white/[0.05] bg-white/[0.02] px-3 py-2 text-xs">

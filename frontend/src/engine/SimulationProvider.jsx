@@ -34,17 +34,25 @@ const SimulationCtx = createContext(simulation);
 /**
  * Root provider. Starts the centralized simulation on mount, stops it on
  * unmount. Mount ONCE at the application root.
+ *
+ * React StrictMode mounts/unmounts components twice in development. We guard
+ * against double-start by checking whether the engine is already running
+ * before calling start(), and restore the running state on cleanup so the
+ * second mount starts fresh.
  */
 export function SimulationProvider({ children, autoStart = true }) {
   useEffect(() => {
-    if (autoStart) simulation.start();
+    if (!autoStart) return;
+    // Only start if not already running (guards against StrictMode double-invoke).
+    if (!simulation.getSnapshot().running) {
+      simulation.start();
+    }
     return () => {
-      // Note: we intentionally do NOT stop the engine on hot-reload teardown
-      // in development because React StrictMode mounts/unmounts twice. Stop
-      // only when the page genuinely unloads.
+      // Stop on genuine unmount (e.g. during testing or SSR teardown).
+      // In production there is exactly one mount, so this is a no-op at runtime.
+      simulation.stop();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [autoStart]);
 
   return (
     <SimulationCtx.Provider value={simulation}>

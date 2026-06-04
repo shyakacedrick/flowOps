@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import HybridDashboardShell from './HybridDashboardShell.jsx';
 import CustomerFlowChart from '../components/owner/hybrid/CustomerFlowChart.jsx';
 import OperationalQuickGrid from '../components/owner/hybrid/OperationalQuickGrid.jsx';
@@ -8,7 +8,7 @@ import SmartInsightsPanel from '../components/owner/hybrid/SmartInsightsPanel.js
 import NextInLineTimeline from '../components/owner/hybrid/NextInLineTimeline.jsx';
 import SystemStatusCenter from '../components/owner/hybrid/SystemStatusCenter.jsx';
 import BootSequence from '../components/owner/hybrid/BootSequence.jsx';
-import { useFlowOps, useFlowOpsDispatch } from '../engine/FlowOpsProvider.jsx';
+import { useSimulationSlice, useSimulationDispatch } from '../engine/SimulationProvider.jsx';
 import {
   EVENT_TYPES,
   selectAverageWait,
@@ -32,31 +32,39 @@ export default function BusinessOwnerDashboard() {
     if (typeof window === 'undefined') return true;
     return window.sessionStorage.getItem('flowops:booted') === '1';
   });
-  const state    = useFlowOps();
-  const dispatch = useFlowOpsDispatch();
 
-  const efficiency = selectEfficiency(state);
-  const avgWait    = selectAverageWait(state);
+  // Subscribe only to the slices this component actually reads, so it does
+  // NOT re-render on every simulation tick.
+  const queue    = useSimulationSlice((s) => s.queue);
+  const history  = useSimulationSlice((s) => s.history);
+  const analytics = useSimulationSlice((s) => s.analytics);
+  const business  = useSimulationSlice((s) => s.business);
+  const dispatch = useSimulationDispatch();
 
-  const totalServed    = state.analytics.totalServed || 242;
+  const efficiency = selectEfficiency({ queue, analytics, business });
+  const avgWait    = selectAverageWait({ queue, analytics, business });
+
+  const totalServed    = analytics.totalServed || 242;
   const avgWaitMins    = Math.max(1, Math.round(avgWait)) || 14;
   const activeCounters = 4;
 
-  const waiting          = state.queue.length || 18;
-  const serving          = Math.min(4, Math.max(0, state.queue.filter((c) => c.status === 'serving').length || 4));
+  // Use explicit null-check so a genuine queue length of 0 is not masked by
+  // the fallback (fixes the falsy-zero || bug).
+  const waiting          = queue.length > 0 ? queue.length : 18;
+  const serving          = Math.min(4, Math.max(0, queue.filter((c) => c.status === 'serving').length > 0 ? queue.filter((c) => c.status === 'serving').length : 4));
   const staffActive      = 6;
   const staffOnBreak     = 1;
-  const efficiencyDelta  = Math.max(0, Math.round(efficiency - 60)) || 12;
+  const efficiencyDelta  = Math.max(0, Math.round(efficiency - 60)) > 0 ? Math.max(0, Math.round(efficiency - 60)) : 12;
 
   // Queue health buckets derived from waiting depth.
-  const normal   = Math.max(0, waiting - 4) || 14;
+  const normal   = Math.max(0, waiting - 4) > 0 ? Math.max(0, waiting - 4) : 14;
   const delayed  = Math.min(waiting, 3);
   const critical = waiting > 20 ? 2 : 1;
 
   // Derive "next in line" items from real queue state (fallbacks if empty).
   const nextItems = useMemo(() => {
-    const live = state.queue.slice(0, 5).map((c, i) => {
-      const eta = Math.max(1, Math.round((i + 1) * state.business.averageServiceTime));
+    const live = queue.slice(0, 5).map((c, i) => {
+      const eta = Math.max(1, Math.round((i + 1) * business.averageServiceTime));
       const status = i === 0 ? 'Ready' : i === 1 ? 'On deck' : i === 4 ? 'Reserved' : 'Queued';
       return {
         ticket: ticketCode(c.id, i),
@@ -76,12 +84,12 @@ export default function BusinessOwnerDashboard() {
       { ticket: 'A-106', desk: 'Desk 4', eta: '30m', tone: 'rose',    status: 'Reserved' },
     ];
     return [...live, ...fallback].slice(0, 5);
-  }, [state.queue, state.business.averageServiceTime]);
+  }, [queue, business.averageServiceTime]);
 
-  const handleQuickAdd = (key) => {
+  const handleQuickAdd = useCallback((key) => {
     if (key === 'queue') dispatch({ type: EVENT_TYPES.NEW_CUSTOMER });
-  };
-  const handleCallNext = () => dispatch({ type: EVENT_TYPES.SERVE_CUSTOMER });
+  }, [dispatch]);
+  const handleCallNext = useCallback(() => dispatch({ type: EVENT_TYPES.SERVE_CUSTOMER }), [dispatch]);
 
   const handleBootDone = () => {
     setBooted(true);
@@ -102,7 +110,7 @@ export default function BusinessOwnerDashboard() {
                 totalServed={totalServed}
                 avgWait={avgWaitMins}
                 activeCounters={activeCounters}
-                history={state.history}
+                history={history}
               />
               <OperationalQuickGrid
                 waiting={waiting}
@@ -120,8 +128,8 @@ export default function BusinessOwnerDashboard() {
                 normal={normal}
                 delayed={delayed}
                 critical={critical}
-                history={state.history}
-                queueLength={state.queue.length}
+                history={history}
+                queueLength={queue.length}
               />
               <SystemStatusCenter />
             </div>

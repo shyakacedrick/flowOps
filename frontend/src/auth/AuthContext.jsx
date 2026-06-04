@@ -43,10 +43,14 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    if (session) {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
-    } else {
-      window.localStorage.removeItem(STORAGE_KEY);
+    try {
+      if (session) {
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+      } else {
+        window.localStorage.removeItem(STORAGE_KEY);
+      }
+    } catch {
+      // QuotaExceededError in private browsing or storage-full scenarios — non-fatal.
     }
   }, [session]);
 

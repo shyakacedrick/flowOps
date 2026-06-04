@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Activity,
@@ -23,10 +23,10 @@ import EmptyState from '../components/EmptyState.jsx';
 import SystemPhaseBanner from '../components/SystemPhaseBanner.jsx';
 import StatusIndicator from '../components/shared/StatusIndicator.jsx';
 import {
-  useFlowOps,
-  useFlowOpsControls,
-  useFlowOpsDispatch,
-} from '../engine/FlowOpsProvider.jsx';
+  useSimulationSlice,
+  useSimulationControls,
+  useSimulationDispatch,
+} from '../engine/SimulationProvider.jsx';
 import { useCountUp } from '../hooks/useCountUp.js';
 import {
   EVENT_TYPES,
@@ -341,19 +341,28 @@ function ControlPanel({ head, simTime, paused, onCall, onSkip, onServe, onPause 
   );
 }
 
-function InsightsPanel({ state, paused }) {
-  const efficiency = selectEfficiency(state);
-  const avgWait    = selectAverageWait(state);
-  const estWait    = selectEstimatedWait(state);
-  const status     = selectStatus(state);
+function InsightsPanel({ paused }) {
+  // Subscribe to only the fields needed here — avoids prop drilling full state.
+  const queue      = useSimulationSlice((s) => s.queue);
+  const analytics  = useSimulationSlice((s) => s.analytics);
+  const recent     = useSimulationSlice((s) => s.recent);
+  const stateSlice = useSimulationSlice((s) => ({
+    queue: s.queue, analytics: s.analytics, business: s.business,
+    history: s.history, recent: s.recent, lastEvent: s.lastEvent, systemStatus: s.systemStatus,
+  }));
+
+  const efficiency = selectEfficiency(stateSlice);
+  const avgWait    = selectAverageWait(stateSlice);
+  const estWait    = selectEstimatedWait(stateSlice);
+  const status     = selectStatus(stateSlice);
 
   return (
     <div className="flex h-full flex-col gap-3">
       <div className="grid grid-cols-2 gap-3">
-        <KpiCard icon={Users}        label="Queue length" value={state.queue.length} tone="primary" />
+        <KpiCard icon={Users}        label="Queue length" value={queue.length} tone="primary" />
         <KpiCard icon={Clock}        label="Est. wait"    value={estWait} suffix="m" tone="cyan" />
         <KpiCard icon={Clock}        label="Avg wait"     value={avgWait} suffix="m" decimals={1} tone="amber" />
-        <KpiCard icon={CheckCircle2} label="Served today" value={state.analytics.totalServed} tone="emerald" />
+        <KpiCard icon={CheckCircle2} label="Served today" value={analytics.totalServed} tone="emerald" />
       </div>
 
       <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-4 backdrop-blur-xl">
@@ -384,7 +393,7 @@ function InsightsPanel({ state, paused }) {
         <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">
           Peak hour
         </p>
-        <p className="mt-1 font-mono text-2xl font-bold text-white">{state.analytics.peakHour}</p>
+        <p className="mt-1 font-mono text-2xl font-bold text-white">{analytics.peakHour}</p>
         <p className="text-[11px] text-slate-500">Busiest window today</p>
       </div>
 
@@ -408,7 +417,7 @@ function InsightsPanel({ state, paused }) {
           Recently served
         </p>
         <div className="mt-2 space-y-1.5">
-          {state.recent.length === 0 ? (
+          {recent.length === 0 ? (
             <EmptyState
               icon={History}
               title="Nothing served yet"
@@ -417,7 +426,7 @@ function InsightsPanel({ state, paused }) {
               tone="success"
             />
           ) : (
-            state.recent.slice(0, 4).map((c) => (
+            recent.slice(0, 4).map((c) => (
               <motion.div
                 key={`recent-${c.id}`}
                 initial={{ opacity: 0, x: 8 }}
@@ -444,17 +453,20 @@ function InsightsPanel({ state, paused }) {
 
 export default function StaffDashboard() {
   const [tab, setTab] = useState('live');
-  const state    = useFlowOps();
-  const dispatch = useFlowOpsDispatch();
-  const { running, toggle } = useFlowOpsControls();
+
+  // Subscribe to targeted slices only — no full re-render on every tick.
+  const queue   = useSimulationSlice((s) => s.queue);
+  const simTime = useSimulationSlice((s) => s.simTime);
+  const dispatch = useSimulationDispatch();
+  const { running, toggle } = useSimulationControls();
   const paused = !running;
 
-  const head = state.queue[0] ?? null;
+  const head = queue[0] ?? null;
 
-  const handleCall  = () => dispatch({ type: EVENT_TYPES.SERVE_CUSTOMER });
-  const handleServe = () => dispatch({ type: EVENT_TYPES.SERVE_CUSTOMER });
-  const handleSkip  = () => dispatch({ type: EVENT_TYPES.SKIP_CUSTOMER });
-  const handleAddDemo = () => dispatch({ type: EVENT_TYPES.NEW_CUSTOMER });
+  // Stable handler references prevent unnecessary child re-renders.
+  const handleServe   = useCallback(() => dispatch({ type: EVENT_TYPES.SERVE_CUSTOMER }), [dispatch]);
+  const handleSkip    = useCallback(() => dispatch({ type: EVENT_TYPES.SKIP_CUSTOMER }), [dispatch]);
+  const handleAddDemo = useCallback(() => dispatch({ type: EVENT_TYPES.NEW_CUSTOMER }), [dispatch]);
 
   return (
     <DashboardShell navItems={NAV} activeKey={tab} onNav={setTab}>
@@ -491,10 +503,10 @@ export default function StaffDashboard() {
           className="lg:col-span-4 min-h-[640px]"
         >
           <QueueListPanel
-            queue={state.queue}
-            simTime={state.simTime}
+            queue={queue}
+            simTime={simTime}
             canAct={!paused}
-            onCall={handleCall}
+            onCall={handleServe}
             onSkip={handleSkip}
             onServe={handleServe}
             onAddDemo={handleAddDemo}
@@ -508,9 +520,9 @@ export default function StaffDashboard() {
         >
           <ControlPanel
             head={head}
-            simTime={state.simTime}
+            simTime={simTime}
             paused={paused}
-            onCall={handleCall}
+            onCall={handleServe}
             onSkip={handleSkip}
             onServe={handleServe}
             onPause={toggle}
@@ -522,7 +534,7 @@ export default function StaffDashboard() {
           animate="show"
           className="lg:col-span-4 min-h-[640px]"
         >
-          <InsightsPanel state={state} paused={paused} />
+          <InsightsPanel paused={paused} />
         </motion.div>
       </div>
     </DashboardShell>

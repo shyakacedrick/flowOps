@@ -15,20 +15,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { RadioTower, Wifi, Activity } from 'lucide-react';
-import { useFlowOps } from '../engine/FlowOpsProvider.jsx';
+import { useSimulationSlice } from '../engine/SimulationProvider.jsx';
+import { formatAgo } from '../utils/formatTime.js';
 import { ease } from '../animations/motion';
 
-function formatAgo(seconds) {
-  if (seconds < 2)  return 'just now';
-  if (seconds < 60) return `${seconds}s ago`;
-  const m = Math.floor(seconds / 60);
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  return `${h}h ago`;
-}
-
 export default function LiveStatusBar({ title = 'Live operational data' }) {
-  const state = useFlowOps();
+  // Subscribe only to lastEvent — this component only needs to detect new events.
+  const lastEvent = useSimulationSlice((s) => s.lastEvent);
 
   // Anchor wall-clock per engine event — "last updated" measures real seconds
   // since the most recent reducer activity. We watch lastEvent.at + type so
@@ -37,7 +30,7 @@ export default function LiveStatusBar({ title = 'Live operational data' }) {
   const [now, setNow]               = useState(() => Date.now());
   const [refreshKey, setRefreshKey] = useState(0);
 
-  const eventSig = `${state.lastEvent.type}-${state.lastEvent.at}-${state.lastEvent.ref ?? ''}`;
+  const eventSig = `${lastEvent.type}-${lastEvent.at}-${lastEvent.ref ?? ''}`;
   const seenSig  = useRef(eventSig);
 
   useEffect(() => {
@@ -53,8 +46,6 @@ export default function LiveStatusBar({ title = 'Live operational data' }) {
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
   }, []);
-
-  const seconds = Math.max(0, Math.floor((now - lastUpdate) / 1000));
 
   return (
     <div className="relative overflow-hidden rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-2.5 backdrop-blur-xl">
@@ -113,7 +104,7 @@ export default function LiveStatusBar({ title = 'Live operational data' }) {
           <span className="inline-flex items-center gap-1.5">
             <Wifi className="h-3 w-3 text-slate-500" />
             <span className="font-mono tabular-nums">
-              Last updated <span className="text-white">{formatAgo(seconds)}</span>
+              Last updated <span className="text-white">{formatAgo(lastUpdate, now)}</span>
             </span>
           </span>
         </div>
