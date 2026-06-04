@@ -18,21 +18,21 @@ const DOTS = {
 };
 
 const STATUS_TONES = {
-  Ready:    'bg-sky-50 text-sky-700 ring-sky-100',
-  'On deck':'bg-violet-50 text-violet-700 ring-violet-100',
-  Queued:   'bg-slate-50 text-slate-600 ring-slate-200',
-  Reserved: 'bg-rose-50 text-rose-700 ring-rose-100',
+  Ready:    'bg-sky-500/10 text-sky-300 ring-sky-400/20',
+  'On deck':'bg-violet-500/10 text-violet-300 ring-violet-400/20',
+  Queued:   'bg-white/[0.04] text-slate-300 ring-white/10',
+  Reserved: 'bg-rose-500/10 text-rose-300 ring-rose-400/20',
 };
 
 export default function NextInLineTimeline({ items = ITEMS }) {
   return (
-    <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200/70">
+    <section className="rounded-3xl bg-white/[0.03] p-6 shadow-sm ring-1 ring-white/[0.06]">
       <div className="flex items-baseline justify-between">
         <div>
-          <h3 className="text-base font-semibold text-slate-900">Upcoming queue sequence</h3>
-          <p className="text-xs text-slate-500">Predicted hand-offs across counters</p>
+          <h3 className="text-base font-semibold text-white">Upcoming queue sequence</h3>
+          <p className="text-xs text-slate-400">Predicted hand-offs across counters</p>
         </div>
-        <button className="text-xs font-semibold text-sky-600 hover:text-sky-700">
+        <button className="text-xs font-semibold text-cyan-300 hover:text-cyan-200">
           Manage →
         </button>
       </div>
@@ -48,32 +48,32 @@ export default function NextInLineTimeline({ items = ITEMS }) {
           >
             {/* ETA column */}
             <div className="w-16 shrink-0 pt-1 text-right">
-              <p className="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+              <p className="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-slate-500">
                 <Clock className="h-3 w-3" /> {it.eta}
               </p>
             </div>
 
             {/* Timeline column */}
             <div className="relative flex-1 pl-4">
-              <span className={`absolute -left-[3px] top-2 h-2.5 w-2.5 rounded-full ring-4 ring-white ${DOTS[it.tone] || DOTS.sky}`} />
+              <span className={`absolute -left-[3px] top-2 h-2.5 w-2.5 rounded-full ring-4 ring-[#0B1120] ${DOTS[it.tone] || DOTS.sky}`} />
               {i < items.length - 1 && (
-                <span className="absolute left-0 top-5 h-full w-px bg-slate-100" />
+                <span className="absolute left-0 top-5 h-full w-px bg-white/[0.08]" />
               )}
 
-              <div className="rounded-2xl px-3 py-2 transition-colors group-hover:bg-slate-50">
+              <div className="rounded-2xl px-3 py-2 transition-colors group-hover:bg-white/[0.03]">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <p className="font-mono text-sm font-bold tracking-tight text-slate-900">
+                    <p className="font-mono text-sm font-bold tracking-tight text-white">
                       Ticket #{it.ticket}
                     </p>
-                    <ArrowRight className="h-3 w-3 text-slate-400" />
-                    <p className="text-xs font-medium text-slate-600">{it.desk}</p>
+                    <ArrowRight className="h-3 w-3 text-slate-500" />
+                    <p className="text-xs font-medium text-slate-300">{it.desk}</p>
                   </div>
                   <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ${STATUS_TONES[it.status] || STATUS_TONES.Queued}`}>
                     {it.status}
                   </span>
                 </div>
-                <p className="mt-0.5 text-[11px] text-slate-400">Estimated wait · {it.eta}</p>
+                <p className="mt-0.5 text-[11px] text-slate-500">Estimated wait · {it.eta}</p>
               </div>
             </div>
           </motion.li>

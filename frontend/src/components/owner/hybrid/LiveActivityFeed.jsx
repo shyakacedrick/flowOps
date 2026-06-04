@@ -18,11 +18,11 @@ const AVATARS = {
   emerald: 'from-emerald-400 to-teal-500',
 };
 const TAGS = {
-  sky:     'bg-sky-50 text-sky-600 ring-sky-100',
-  violet:  'bg-violet-50 text-violet-600 ring-violet-100',
-  amber:   'bg-amber-50 text-amber-700 ring-amber-100',
-  rose:    'bg-rose-50 text-rose-600 ring-rose-100',
-  emerald: 'bg-emerald-50 text-emerald-700 ring-emerald-100',
+  sky:     'bg-sky-500/10 text-sky-300 ring-sky-400/20',
+  violet:  'bg-violet-500/10 text-violet-300 ring-violet-400/20',
+  amber:   'bg-amber-500/10 text-amber-300 ring-amber-400/20',
+  rose:    'bg-rose-500/10 text-rose-300 ring-rose-400/20',
+  emerald: 'bg-emerald-500/10 text-emerald-300 ring-emerald-400/20',
 };
 
 const SEED_ROWS = [
@@ -43,40 +43,40 @@ export default function LiveActivityFeed() {
   const rows = liveRows.length >= 3 ? liveRows : [...liveRows, ...SEED_ROWS].slice(0, 15);
 
   return (
-    <section className="overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-slate-200/70">
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 border-b border-slate-100 px-5 py-4 sm:px-6 sm:py-5">
+    <section className="overflow-hidden rounded-3xl bg-white/[0.03] shadow-sm ring-1 ring-white/[0.06]">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 border-b border-white/[0.06] px-5 py-4 sm:px-6 sm:py-5">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-base font-semibold text-slate-900">Live queue activity</h3>
-            <span className="flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 ring-1 ring-emerald-100">
+            <h3 className="text-base font-semibold text-white">Live queue activity</h3>
+            <span className="flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-300 ring-1 ring-emerald-400/20">
               <span className="relative flex h-1.5 w-1.5">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
               </span>
               Live
             </span>
-            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+            <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[10px] font-semibold text-slate-300">
               {rows.length} events
             </span>
           </div>
-          <p className="mt-0.5 text-xs text-slate-500">Continuously updating customer transitions</p>
+          <p className="mt-0.5 text-xs text-slate-400">Continuously updating customer transitions</p>
         </div>
         <div className="flex items-center gap-3">
-          <div className="hidden w-56 items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 lg:flex">
-            <Search className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+          <div className="hidden w-56 items-center gap-2 rounded-full bg-white/[0.04] px-3 py-1.5 lg:flex">
+            <Search className="h-3.5 w-3.5 shrink-0 text-slate-500" />
             <input
               type="text"
               placeholder="Search…"
-              className="w-full bg-transparent text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none"
+              className="w-full bg-transparent text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none"
             />
           </div>
-          <button className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-sky-600 hover:text-sky-700">
+          <button className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-cyan-300 hover:text-cyan-200">
             See all <ArrowRight className="h-3.5 w-3.5" />
           </button>
         </div>
       </div>
 
-      <ul className="max-h-[480px] divide-y divide-slate-100 overflow-y-auto">
+      <ul className="max-h-[480px] divide-y divide-white/[0.05] overflow-y-auto">
         <AnimatePresence initial={false}>
           {rows.map((r) => (
             <motion.li
@@ -86,17 +86,17 @@ export default function LiveActivityFeed() {
               animate={{ opacity: 1, y: 0,   scale: 1 }}
               exit={{    opacity: 0, y: 12,  scale: 0.98 }}
               transition={{ duration: 0.28, ease: 'easeOut' }}
-              className="flex items-center gap-3 px-5 py-3.5 transition-colors hover:bg-slate-50 sm:gap-4 sm:px-6"
+              className="flex items-center gap-3 px-5 py-3.5 transition-colors hover:bg-white/[0.03] sm:gap-4 sm:px-6"
             >
               <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-full bg-gradient-to-br ${AVATARS[r.avatarTone] || AVATARS.sky} text-xs font-bold text-white shadow-sm`}>
                 {initialsOf(r.name)}
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-baseline gap-x-2">
-                  <p className="truncate text-sm font-semibold text-slate-900">{r.label}</p>
-                  <span className="shrink-0 text-[11px] font-medium text-slate-400">· {timeAgo(r.ts)}</span>
+                  <p className="truncate text-sm font-semibold text-slate-100">{r.label}</p>
+                  <span className="shrink-0 text-[11px] font-medium text-slate-500">· {timeAgo(r.ts)}</span>
                 </div>
-                <p className="truncate text-xs text-slate-500">{r.sub}</p>
+                <p className="truncate text-xs text-slate-400">{r.sub}</p>
               </div>
               <span className={`hidden shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold ring-1 sm:inline-flex ${TAGS[r.tagTone] || TAGS.sky}`}>
                 {r.tag}

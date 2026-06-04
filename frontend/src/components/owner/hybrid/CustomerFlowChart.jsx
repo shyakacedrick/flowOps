@@ -212,6 +212,7 @@ function GradientAreaChart({ points }) {
           <motion.path
             d={buildArea(points[idx], W, H)}
             fill={layer.fill}
+            initial={false}
             animate={{ d: buildArea(points[idx], W, H) }}
             transition={{ duration: 0.6, ease: 'easeOut' }}
           />

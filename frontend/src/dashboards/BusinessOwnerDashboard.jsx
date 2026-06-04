@@ -27,7 +27,6 @@ import {
 const NEXT_TONES = ['sky', 'violet', 'emerald', 'amber', 'rose'];
 
 export default function BusinessOwnerDashboard() {
-  const [active, setActive] = useState('dashboard');
   const [booted, setBooted] = useState(() => {
     if (typeof window === 'undefined') return true;
     return window.sessionStorage.getItem('flowops:booted') === '1';
@@ -101,8 +100,6 @@ export default function BusinessOwnerDashboard() {
       {!booted && <BootSequence onDone={handleBootDone} />}
 
       <HybridDashboardShell
-        activeKey={active}
-        onNav={setActive}
         darkSlot={
           <div className="grid gap-5 xl:grid-cols-12">
             <div className="space-y-5 xl:col-span-8">

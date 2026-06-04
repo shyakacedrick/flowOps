@@ -1,4 +1,5 @@
 import { Check, Sparkles, ArrowRight } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import Reveal from './Reveal';
 import Stagger from './Stagger';
@@ -17,7 +18,7 @@ const PLANS = [
       'Email support',
     ],
     cta: 'Start free',
-    href: '#cta',
+    to: '/signup',
   },
   {
     name: 'Pro',
@@ -33,7 +34,7 @@ const PLANS = [
       'Priority chat support',
     ],
     cta: 'Start 14-day trial',
-    href: '#cta',
+    to: '/signup',
   },
   {
     name: 'Enterprise',
@@ -48,7 +49,7 @@ const PLANS = [
       'Dedicated success manager',
     ],
     cta: 'Talk to sales',
-    href: '#footer',
+    to: '/book-demo',
   },
 ];
 
@@ -115,20 +116,24 @@ export default function Pricing() {
                 ))}
               </ul>
 
-              <motion.a
-                href={p.href}
+              <motion.div
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 transition={{ duration: 0.15, ease: ease.out }}
-                className={`mt-7 inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors ${
-                  p.featured
-                    ? 'bg-primary text-white shadow-glow hover:bg-blue-500'
-                    : 'border border-white/10 bg-white/[0.04] text-white hover:border-white/20'
-                }`}
+                className="mt-7"
               >
-                {p.cta}
-                <ArrowRight className="h-3.5 w-3.5" />
-              </motion.a>
+                <Link
+                  to={p.to}
+                  className={`inline-flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors ${
+                    p.featured
+                      ? 'bg-primary text-white shadow-glow hover:bg-blue-500'
+                      : 'border border-white/10 bg-white/[0.04] text-white hover:border-white/20'
+                  }`}
+                >
+                  {p.cta}
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+              </motion.div>
             </motion.div>
           </Stagger.Item>
         ))}

@@ -1,10 +1,11 @@
+import { Link } from 'react-router-dom';
 import DashboardMock from './DashboardMock.jsx';
 import { motion } from 'framer-motion';
 import { ease, staggerContainer, staggerItem } from '../animations/motion';
 
 export default function Hero() {
   return (
-    <section id="hero" className="relative overflow-hidden bg-radial pt-32">
+    <section id="hero" className="relative overflow-hidden bg-radial pt-40 lg:pt-20">
       {/* Grid backdrop */}
       <div className="pointer-events-none absolute inset-0 bg-grid-faint [background-size:48px_48px] opacity-40 [mask-image:radial-gradient(ellipse_at_center,black_30%,transparent_75%)]" />
 
@@ -16,12 +17,7 @@ export default function Hero() {
           initial="hidden"
           animate="show"
         >
-          <motion.span variants={staggerItem} className="eyebrow">
-            <span className="h-1.5 w-1.5 rounded-full bg-secondary" />
-            Smart Business Operations Platform
-          </motion.span>
-
-          <motion.h1 variants={staggerItem} className="h-display mt-6">
+          <motion.h1 variants={staggerItem} className="h-display">
             Manage queues smarter.{' '}
             <span className="bg-gradient-to-r from-primary via-blue-400 to-secondary bg-clip-text text-transparent">
               Understand business flow
@@ -36,44 +32,44 @@ export default function Hero() {
           </motion.p>
 
           <motion.div variants={staggerItem} className="mt-8 flex flex-wrap items-center gap-3">
-            <motion.a
-              href="#cta"
-              className="btn-primary"
+            <motion.div
               whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.97 }}
               transition={{ duration: 0.15, ease: ease.out }}
             >
-              Get Started
-              <svg
-                viewBox="0 0 20 20"
-                fill="currentColor"
-                className="h-4 w-4"
-                aria-hidden
-              >
-                <path
-                  fillRule="evenodd"
-                  d="M3 10a.75.75 0 01.75-.75h10.638L10.23 5.29a.75.75 0 111.04-1.08l5.5 5.25a.75.75 0 010 1.08l-5.5 5.25a.75.75 0 11-1.04-1.08l4.158-3.96H3.75A.75.75 0 013 10z"
-                  clipRule="evenodd"
-                />
-              </svg>
-            </motion.a>
-            <motion.a
-              href="#demo"
-              className="btn-secondary"
+              <Link to="/signup" className="btn-primary">
+                Get Started
+                <svg
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                  className="h-4 w-4"
+                  aria-hidden
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M3 10a.75.75 0 01.75-.75h10.638L10.23 5.29a.75.75 0 111.04-1.08l5.5 5.25a.75.75 0 010 1.08l-5.5 5.25a.75.75 0 11-1.04-1.08l4.158-3.96H3.75A.75.75 0 013 10z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </Link>
+            </motion.div>
+            <motion.div
               whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.97 }}
               transition={{ duration: 0.15, ease: ease.out }}
             >
-              <svg
-                viewBox="0 0 20 20"
-                fill="currentColor"
-                className="h-4 w-4 text-secondary"
-                aria-hidden
-              >
-                <path d="M6.3 2.84A1 1 0 004.8 3.7v12.6a1 1 0 001.5.86l10.5-6.3a1 1 0 000-1.72L6.3 2.84z" />
-              </svg>
-              Watch Demo
-            </motion.a>
+              <Link to="/book-demo" className="btn-secondary">
+                <svg
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                  className="h-4 w-4 text-secondary"
+                  aria-hidden
+                >
+                  <path d="M6.3 2.84A1 1 0 004.8 3.7v12.6a1 1 0 001.5.86l10.5-6.3a1 1 0 000-1.72L6.3 2.84z" />
+                </svg>
+                Request Demo
+              </Link>
+            </motion.div>
           </motion.div>
 
           {/* trust strip */}

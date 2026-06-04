@@ -1,3 +1,5 @@
+import { Link } from 'react-router-dom';
+
 export default function ClosingCTA() {
   return (
     <section id="cta" className="section">
@@ -26,7 +28,7 @@ export default function ClosingCTA() {
           </p>
 
           <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
-            <a href="#start" className="btn-primary !py-4 !px-7 text-base">
+            <Link to="/signup" className="btn-primary !py-4 !px-7 text-base">
               Get Started
               <svg
                 viewBox="0 0 20 20"
@@ -40,10 +42,10 @@ export default function ClosingCTA() {
                   clipRule="evenodd"
                 />
               </svg>
-            </a>
-            <a href="#demo" className="btn-secondary !py-4 !px-7 text-base">
+            </Link>
+            <Link to="/book-demo" className="btn-secondary !py-4 !px-7 text-base">
               Book a Demo
-            </a>
+            </Link>
           </div>
 
           <div className="mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs text-slate-500">

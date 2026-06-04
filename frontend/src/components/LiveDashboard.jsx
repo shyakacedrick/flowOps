@@ -119,10 +119,13 @@ function KPI({ icon: Icon, label, value, suffix = '', decimals = 0, tint = 'prim
 }
 
 function Sparkline({ points }) {
-  const max = Math.max(1, ...points);
   const w = 220;
   const h = 56;
-  const step = w / (points.length - 1);
+  if (!points?.length) {
+    return <svg viewBox={`0 0 ${w} ${h}`} className="h-14 w-full" aria-hidden />;
+  }
+  const max = Math.max(1, ...points);
+  const step = points.length > 1 ? w / (points.length - 1) : 0;
   const d = points
     .map((p, i) => {
       const x = i * step;
@@ -141,6 +144,7 @@ function Sparkline({ points }) {
       <motion.path
         d={`${d} L ${w} ${h} L 0 ${h} Z`}
         fill="url(#spark-fill)"
+        initial={false}
         animate={{ d: `${d} L ${w} ${h} L 0 ${h} Z` }}
         transition={{ duration: 0.7, ease: ease.out }}
       />
@@ -151,6 +155,7 @@ function Sparkline({ points }) {
         strokeWidth="1.75"
         strokeLinecap="round"
         strokeLinejoin="round"
+        initial={false}
         animate={{ d }}
         transition={{ duration: 0.7, ease: ease.out }}
       />

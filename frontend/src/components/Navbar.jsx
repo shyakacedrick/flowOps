@@ -483,7 +483,7 @@ export default function Navbar() {
               className="inline-block"
             >
               <Link
-                to="/login"
+                to="/signup"
                 className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white shadow-glow hover:bg-blue-500 hover:shadow-glow-lg"
               >
                 Get Started
@@ -582,7 +582,7 @@ export default function Navbar() {
                   Login
                 </Link>
                 <Link
-                  to="/login"
+                  to="/signup"
                   onClick={closeAll}
                   className="flex-1 rounded-lg bg-primary px-4 py-2.5 text-center text-sm font-semibold text-white shadow-glow"
                 >
