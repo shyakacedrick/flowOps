@@ -130,7 +130,7 @@ function GroupHeading({ children }) {
 function PanelShell({ children, className = '' }) {
   return (
     <div
-      className={`pointer-events-auto relative overflow-hidden rounded-3xl border border-white/[0.08] bg-slate-950/90 shadow-2xl shadow-black/40 backdrop-blur-2xl ${className}`}
+      className={`pointer-events-auto relative overflow-hidden rounded-3xl border border-white/[0.08] bg-slate-950/95 shadow-2xl shadow-black/40 backdrop-blur-2x1 ${className}`}
     >
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/[0.03] to-transparent" />
       <div className="relative">{children}</div>
