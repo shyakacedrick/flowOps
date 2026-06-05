@@ -5,8 +5,8 @@
 //  `SimulationProvider`. This module exists ONLY for backwards compatibility
 //  with components written against the historic FlowOps API.
 //
-//  Prefer:   import { useSimulation }      from './SimulationProvider'
-//  Legacy:   import { useFlowOps }         from './FlowOpsProvider'
+//  Prefer:   import { useSimulation }      from '@/engine/SimulationProvider'
+//  Legacy:   import { useFlowOps }         from '@/engine/FlowOpsProvider'
 // ============================================================================
 
 import {
@@ -15,7 +15,7 @@ import {
   useSimulationSlice,
   useSimulationDispatch,
   useSimulationControls,
-} from './SimulationProvider.jsx';
+} from '@/engine/SimulationProvider.jsx';
 
 /** @deprecated Use `<SimulationProvider>` directly. */
 export const FlowOpsProvider = SimulationProvider;

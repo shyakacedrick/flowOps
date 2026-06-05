@@ -28,7 +28,7 @@ import {
   nextEventDelay,
   pickEvent,
   reducer,
-} from './flowOpsEngine.js';
+} from '@/engine/flowOpsEngine.js';
 
 // ---------------------------------------------------------------------------
 //  Activity log — decorates engine events into UI-ready rows

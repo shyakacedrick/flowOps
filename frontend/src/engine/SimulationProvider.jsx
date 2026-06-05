@@ -27,7 +27,7 @@ import {
   simulation,
   EVENT_TYPES,
   TIME,
-} from './simulationEngine.js';
+} from '@/engine/simulationEngine.js';
 
 const SimulationCtx = createContext(simulation);
 
