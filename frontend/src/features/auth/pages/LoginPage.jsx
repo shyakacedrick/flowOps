@@ -4,167 +4,56 @@ import { AnimatePresence, motion } from 'framer-motion';
 import {
   ArrowRight,
   ArrowLeft,
-  BarChart3,
-  Headphones,
-  ShieldCheck,
   Loader2,
   Check,
   Sparkles,
+  Mail,
+  Lock,
+  Eye,
+  EyeOff,
+  AlertCircle,
 } from 'lucide-react';
 import Logo from '@/shared/components/Logo.jsx';
-import RoleTransitionLoader from '@/features/auth/components/RoleTransitionLoader.jsx';
-import { ROLES, useAuth } from '@/app/providers/AuthProvider.jsx';
+import { useAuth } from '@/app/providers/AuthProvider.jsx';
+import { ROUTES } from '@/shared/constants/routes.js';
+import authApi from '@/services/authApi.js';
 import { ease, staggerContainer, staggerItem } from '@/animations/motion.js';
-
-const ROLE_CARDS = [
-  {
-    role: ROLES.BUSINESS_OWNER,
-    title: 'Business Owner',
-    subtitle: 'Manage your business performance and analytics.',
-    points: ['Wait-time & efficiency KPIs', 'Peak-hour insights', 'Multi-location overview'],
-    icon: BarChart3,
-    tint: 'from-primary/25 to-primary/0 text-primary',
-    ring: 'hover:border-primary/50 hover:shadow-glow',
-    glow: 'bg-primary/20',
-  },
-  {
-    role: ROLES.STAFF,
-    title: 'Staff Operator',
-    subtitle: 'Control live queues and serve customers efficiently.',
-    points: ['Call the next customer', 'Live queue updates', 'Skip & re-queue actions'],
-    icon: Headphones,
-    tint: 'from-secondary/25 to-secondary/0 text-secondary',
-    ring: 'hover:border-secondary/50 hover:shadow-glow-cyan',
-    glow: 'bg-secondary/20',
-    recommended: true,
-  },
-  {
-    role: ROLES.ADMIN,
-    title: 'Platform Admin',
-    subtitle: 'View system-wide platform insights.',
-    points: ['All tenants overview', 'System-level metrics', 'Aggregated activity'],
-    icon: ShieldCheck,
-    tint: 'from-emerald-400/25 to-emerald-400/0 text-emerald-400',
-    ring: 'hover:border-emerald-400/50 hover:shadow-[0_0_40px_rgba(52,211,153,0.25)]',
-    glow: 'bg-emerald-400/20',
-  },
-];
-
-function RoleCard({ card, onSelect, busy, selected }) {
-  const Icon = card.icon;
-  const isThisBusy = busy === card.role;
-  const isOther = busy && busy !== card.role;
-  return (
-    <motion.button
-      type="button"
-      onClick={() => onSelect(card.role)}
-      disabled={Boolean(busy)}
-      variants={staggerItem}
-      whileHover={busy ? {} : { y: -4, scale: 1.015 }}
-      whileTap={busy ? {} : { scale: 0.99 }}
-      transition={{ duration: 0.2, ease: ease.out }}
-      className={`group relative w-full overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5 text-left backdrop-blur-xl transition-all duration-300 ${card.ring} ${
-        isOther ? 'opacity-40' : ''
-      }`}
-    >
-      {/* tint glow */}
-      <div className={`pointer-events-none absolute -top-16 -right-10 h-40 w-40 rounded-full ${card.glow} blur-3xl opacity-40 transition-opacity duration-500 group-hover:opacity-70`} />
-
-      <div className="relative flex items-start gap-4">
-        <div className={`grid h-12 w-12 shrink-0 place-items-center rounded-xl border border-white/10 bg-gradient-to-br ${card.tint}`}>
-          <Icon className="h-5 w-5" strokeWidth={2} />
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <h3 className="text-base font-semibold text-white">{card.title}</h3>
-            {card.recommended && (
-              <span className="rounded-full border border-secondary/30 bg-secondary/10 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-widest text-secondary">
-                Recommended
-              </span>
-            )}
-          </div>
-          <p className="mt-1 text-sm text-slate-400">{card.subtitle}</p>
-          <ul className="mt-3 space-y-1">
-            {card.points.map((p) => (
-              <li key={p} className="flex items-center gap-2 text-xs text-slate-400">
-                <span className="grid h-3.5 w-3.5 place-items-center rounded-full bg-white/[0.06] text-slate-300">
-                  <Check className="h-2 w-2" strokeWidth={3} />
-                </span>
-                {p}
-              </li>
-            ))}
-          </ul>
-        </div>
-        <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.04] text-slate-400 transition-colors group-hover:border-white/20 group-hover:text-white">
-          <AnimatePresence mode="wait" initial={false}>
-            {isThisBusy ? (
-              <motion.span
-                key="spin"
-                initial={{ opacity: 0, scale: 0.7 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.7 }}
-                transition={{ duration: 0.2 }}
-              >
-                <Loader2 className="h-4 w-4 animate-spin" />
-              </motion.span>
-            ) : selected ? (
-              <motion.span
-                key="check"
-                initial={{ opacity: 0, scale: 0.7 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.7 }}
-                transition={{ duration: 0.2 }}
-              >
-                <Check className="h-4 w-4 text-emerald-400" />
-              </motion.span>
-            ) : (
-              <motion.span
-                key="arrow"
-                initial={{ opacity: 0, x: -4 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 4 }}
-                transition={{ duration: 0.2 }}
-              >
-                <ArrowRight className="h-4 w-4" />
-              </motion.span>
-            )}
-          </AnimatePresence>
-        </div>
-      </div>
-    </motion.button>
-  );
-}
 
 export default function LoginPage() {
   const navigate = useNavigate();
   const { signIn } = useAuth();
-  const [busy, setBusy] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [showPw, setShowPw] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+  const [form, setForm] = useState({ email: '', password: '' });
 
-  // Premium boot sequence: 1100ms while the RoleTransitionLoader walks through
-  // its three stages, then we sign in and hand off to the dashboard router.
-  const BOOT_MS = 1100;
+  const update = (field) => (e) =>
+    setForm((f) => ({ ...f, [field]: e.target.value }));
 
-  const handleSelect = (role) => {
+  const onSubmit = async (e) => {
+    e.preventDefault();
     if (busy) return;
-    setBusy(role);
-    setTimeout(() => {
-      signIn(role);
-      navigate('/dashboard', { replace: true });
-    }, BOOT_MS);
+    setErrorMsg('');
+    setBusy(true);
+
+    const res = await authApi.login({
+      email: form.email.trim().toLowerCase(),
+      password: form.password,
+    });
+
+    if (!res.ok) {
+      setBusy(false);
+      setErrorMsg(res.message || 'Sign-in failed. Please try again.');
+      return;
+    }
+
+    // Token is already persisted by authApi.login on success.
+    signIn(res.data.user);
+    navigate(ROUTES.owner.dashboard, { replace: true });
   };
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-bg text-slate-200">
-      {/* Premium role-switch loader — takes over while we 'configure the workspace' */}
-      <AnimatePresence>
-        {busy && <RoleTransitionLoader role={busy} duration={BOOT_MS} />}
-      </AnimatePresence>
-
-      {/* Login surface fades to dimmed while the loader is up */}
-      <motion.div
-        animate={{ opacity: busy ? 0.25 : 1, filter: busy ? 'blur(2px)' : 'blur(0px)' }}
-        transition={{ duration: 0.4, ease: ease.out }}
-      >
       {/* Ambient background */}
       <div className="pointer-events-none fixed inset-0 -z-10">
         <div className="absolute -top-40 left-1/2 h-[600px] w-[1100px] -translate-x-1/2 rounded-full bg-primary/10 blur-[140px]" />
@@ -205,15 +94,14 @@ export default function LoginPage() {
           </h1>
           <p className="mt-5 max-w-md text-base leading-relaxed text-slate-400">
             Smart queue management and business intelligence for modern service
-            businesses. Choose a role to enter the workspace that fits how you
-            work.
+            businesses.
           </p>
 
           <div className="mt-10 space-y-3 border-t border-white/[0.06] pt-8">
             {[
               'Single sign-on across every location',
               'Role-based dashboards out of the box',
-              'No setup required — try it instantly',
+              'Secure JWT-based session',
             ].map((t) => (
               <div key={t} className="flex items-center gap-2.5 text-sm text-slate-300">
                 <span className="grid h-5 w-5 place-items-center rounded-full bg-primary/15 text-primary">
@@ -225,33 +113,100 @@ export default function LoginPage() {
           </div>
         </motion.div>
 
-        {/* Right — role selection */}
+        {/* Right — credentials form */}
         <motion.div
-          variants={staggerContainer(0.1, 0.2)}
+          variants={staggerContainer(0.08, 0.15)}
           initial="hidden"
           animate="show"
           className="lg:col-span-7"
         >
-          <motion.div variants={staggerItem} className="mb-5">
-            <p className="text-sm font-semibold text-white">Continue as</p>
-            <p className="text-xs text-slate-500">
-              This is a simulated workspace — no password required.
-            </p>
-          </motion.div>
+          <motion.form
+            variants={staggerItem}
+            onSubmit={onSubmit}
+            className="rounded-3xl border border-white/[0.08] bg-white/[0.02] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl sm:p-8"
+          >
+            <div className="mb-6">
+              <p className="text-sm font-semibold text-white">Sign in</p>
+              <p className="text-xs text-slate-500">
+                Enter the email and password you used to create your workspace.
+              </p>
+            </div>
 
-          <div className="space-y-3">
-            {ROLE_CARDS.map((card) => (
-              <RoleCard
-                key={card.role}
-                card={card}
-                onSelect={handleSelect}
-                busy={busy}
-                selected={false}
-              />
-            ))}
-          </div>
+            <div className="space-y-5">
+              <Field label="Work email" icon={Mail}>
+                <input
+                  type="email"
+                  required
+                  autoComplete="email"
+                  value={form.email}
+                  onChange={update('email')}
+                  placeholder="jane@company.com"
+                  className={inputCls}
+                />
+              </Field>
 
-          {/* loading status — inline pill kept as a fallback signal under the cards */}
+              <Field label="Password" icon={Lock}>
+                <div className="relative">
+                  <input
+                    type={showPw ? 'text' : 'password'}
+                    required
+                    autoComplete="current-password"
+                    value={form.password}
+                    onChange={update('password')}
+                    placeholder="••••••••"
+                    className={`${inputCls} pr-11`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPw((v) => !v)}
+                    aria-label={showPw ? 'Hide password' : 'Show password'}
+                    className="absolute inset-y-0 right-0 grid w-11 place-items-center text-slate-400 transition hover:text-white"
+                  >
+                    {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </Field>
+            </div>
+
+            {errorMsg && (
+              <div
+                role="alert"
+                className="mt-5 flex items-start gap-2 rounded-xl border border-red-500/30 bg-red-500/10 px-3.5 py-2.5 text-xs text-red-200"
+              >
+                <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <span>{errorMsg}</span>
+              </div>
+            )}
+
+            <div className="mt-7 flex flex-col-reverse items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs text-slate-500">
+                New to FlowOps?{' '}
+                <Link to={ROUTES.signup} className="font-semibold text-primary hover:underline">
+                  Create a workspace
+                </Link>
+              </p>
+              <motion.button
+                type="submit"
+                disabled={busy}
+                whileHover={busy ? {} : { scale: 1.02 }}
+                whileTap={busy ? {} : { scale: 0.98 }}
+                className="btn-primary disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {busy ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Signing in…
+                  </>
+                ) : (
+                  <>
+                    Sign in
+                    <ArrowRight className="h-4 w-4" />
+                  </>
+                )}
+              </motion.button>
+            </div>
+          </motion.form>
+
           <AnimatePresence>
             {busy && (
               <motion.div
@@ -272,7 +227,21 @@ export default function LoginPage() {
           </p>
         </motion.div>
       </div>
-      </motion.div>
     </div>
+  );
+}
+
+const inputCls =
+  'w-full rounded-xl border border-white/10 bg-white/[0.03] px-3.5 py-2.5 text-sm text-white placeholder:text-slate-500 outline-none transition focus:border-primary/60 focus:bg-white/[0.05] focus:ring-2 focus:ring-primary/30';
+
+function Field({ label, icon: Icon, children }) {
+  return (
+    <label className="block">
+      <span className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-400">
+        {Icon && <Icon className="h-3.5 w-3.5" />}
+        {label}
+      </span>
+      {children}
+    </label>
   );
 }

@@ -11,6 +11,8 @@ export const ORGANIZATION_INDUSTRIES = Object.freeze([
   'other',
 ]);
 
+export const ORGANIZATION_PLANS = Object.freeze(['starter', 'growth', 'scale']);
+
 const organizationSchema = new mongoose.Schema(
   {
     name: {
@@ -35,6 +37,16 @@ const organizationSchema = new mongoose.Schema(
       trim: true,
       maxlength: [1000, 'Description must be at most 1000 characters'],
       default: '',
+    },
+    plan: {
+      type: String,
+      enum: {
+        values: ORGANIZATION_PLANS,
+        message: 'Plan must be one of: {VALUES}',
+      },
+      default: 'starter',
+      lowercase: true,
+      trim: true,
     },
     ownerId: {
       type: mongoose.Schema.Types.ObjectId,

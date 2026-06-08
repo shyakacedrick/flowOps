@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Activity, Filter, ArrowDownToLine, RefreshCw } from 'lucide-react';
 import StaffShell from '@/features/staff/components/StaffShell.jsx';
 import PageHeader, { StatCard } from '@/shared/components/PageHeader.jsx';
+import BackendActivityTimeline from '@/features/customer-feed/components/BackendActivityTimeline.jsx';
 import { useEventLog } from '@/features/customer-feed/hooks/useEventLog.js';
 
 /**
@@ -58,6 +59,9 @@ export default function ActivityFeedPage() {
           <StatCard label="Resolved"     value={count(log, 'Resolved')}                delta="Served"          tone="emerald" />
           <StatCard label="Auto skips"   value={count(log, 'System auto')}             delta="No-shows"        tone="amber" />
         </div>
+
+        {/* Backend-connected log — every event hitting MongoDB shows up here */}
+        <BackendActivityTimeline />
 
         <section className="rounded-3xl border border-white/[0.06] bg-white/[0.02] p-5">
           <div className="flex items-center justify-between">

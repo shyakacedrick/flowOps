@@ -13,6 +13,7 @@
 
 import { BrowserRouter } from 'react-router-dom';
 import ErrorBoundary from '@/shared/components/ErrorBoundary.jsx';
+import ConfirmProvider from '@/shared/components/ConfirmProvider.jsx';
 import { AuthProvider } from '@/app/providers/AuthProvider.jsx';
 import { ThemeProvider } from '@/app/providers/ThemeProvider.jsx';
 import { SimulationProvider } from '@/engine/SimulationProvider.jsx';
@@ -30,9 +31,11 @@ export default function App() {
             entire app. Exactly one simulation per browser tab.
           */}
           <SimulationProvider>
-            <BrowserRouter>
-              <AppRouter />
-            </BrowserRouter>
+            <ConfirmProvider>
+              <BrowserRouter>
+                <AppRouter />
+              </BrowserRouter>
+            </ConfirmProvider>
           </SimulationProvider>
         </ThemeProvider>
       </AuthProvider>

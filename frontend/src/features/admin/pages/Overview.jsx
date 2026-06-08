@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import AdminLayout from '@/features/admin/components/AdminShell.jsx';
 import PageHeader, { StatCard } from '@/shared/components/PageHeader.jsx';
+import QueueManagerCard from '@/features/queue/components/QueueManagerCard.jsx';
 
 /**
  * Overview — executive snapshot of the entire FlowOps platform.
@@ -135,6 +136,15 @@ export default function Overview() {
               <KpiRow label="Open incidents"            value="1"         delta="P3 · investigating" tone="amber" />
             </ul>
           </section>
+
+          {/* Live queues — read-only for the admin overview; full platform scope */}
+          <div className="xl:col-span-12">
+            <QueueManagerCard
+              readOnly
+              title="All queues (platform-wide)"
+              subtitle="Live from the backend · unscoped view for platform admins"
+            />
+          </div>
         </div>
       </div>
     </AdminLayout>

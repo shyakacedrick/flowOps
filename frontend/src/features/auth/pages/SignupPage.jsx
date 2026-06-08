@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
+  AlertCircle,
   ArrowLeft,
   ArrowRight,
   Building2,
@@ -15,6 +16,9 @@ import {
   Zap,
 } from 'lucide-react';
 import Logo from '@/shared/components/Logo.jsx';
+import { ROUTES } from '@/shared/constants/routes.js';
+import { useAuth } from '@/app/providers/AuthProvider.jsx';
+import authApi from '@/services/authApi.js';
 
 /**
  * SignupPage
@@ -24,8 +28,10 @@ import Logo from '@/shared/components/Logo.jsx';
  */
 export default function SignupPage() {
   const navigate = useNavigate();
+  const { signIn } = useAuth();
   const [showPw, setShowPw] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
   const [form, setForm] = useState({
     name: '',
     email: '',
@@ -40,13 +46,31 @@ export default function SignupPage() {
     setForm((f) => ({ ...f, [field]: value }));
   };
 
-  const onSubmit = (e) => {
+  const onSubmit = async (e) => {
     e.preventDefault();
-    if (!form.agree) return;
+    if (!form.agree || busy) return;
+    setErrorMsg('');
     setBusy(true);
-    // eslint-disable-next-line no-console
-    console.log('[Signup] payload:', form);
-    setTimeout(() => navigate('/login'), 900);
+
+    const res = await authApi.register({
+      name: form.name.trim(),
+      email: form.email.trim().toLowerCase(),
+      password: form.password,
+      company: form.company.trim(),
+      plan: form.plan,
+    });
+
+    if (!res.ok) {
+      setBusy(false);
+      setErrorMsg(res.message || 'Sign-up failed. Please try again.');
+      return;
+    }
+
+    // Token already persisted by authApi.register on success.
+    // The backend assigns business_owner role + creates the org, so
+    // hydrate the session and send the new owner straight into their workspace.
+    signIn(res.data.user);
+    navigate(ROUTES.owner.dashboard, { replace: true });
   };
 
   return (
@@ -222,6 +246,16 @@ export default function SignupPage() {
                   <a href="#" className="text-primary hover:underline">Privacy Policy</a>.
                 </span>
               </label>
+
+              {errorMsg && (
+                <div
+                  role="alert"
+                  className="mt-4 flex items-start gap-2 rounded-xl border border-red-500/30 bg-red-500/10 px-3.5 py-2.5 text-xs text-red-200"
+                >
+                  <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                  <span>{errorMsg}</span>
+                </div>
+              )}
 
               <div className="mt-7 flex flex-col-reverse items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-xs text-slate-500">

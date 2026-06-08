@@ -13,11 +13,11 @@
 
 const BASE_URL =
   (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL) ||
-  'http://localhost:4000/api';
+  'http://localhost:5000/api';
 
 const TOKEN_KEY = 'flowops.token';
 
-function getToken() {
+export function getAuthToken() {
   try {
     return typeof window !== 'undefined' ? window.localStorage.getItem(TOKEN_KEY) : null;
   } catch {
@@ -47,7 +47,7 @@ export async function request(path, opts = {}) {
     finalHeaders['Content-Type'] = 'application/json';
   }
   if (auth) {
-    const token = getToken();
+    const token = getAuthToken();
     if (token) finalHeaders.Authorization = `Bearer ${token}`;
   }
 
@@ -69,7 +69,11 @@ export async function request(path, opts = {}) {
       details: data,
     };
   }
-  return { ok: true, status: res.status, data };
+  // Backend wraps successful responses as { success, data, meta? }.
+  // Unwrap here so callers can just use res.data for the actual payload.
+  const payload =
+    data && typeof data === 'object' && 'success' in data ? data.data : data;
+  return { ok: true, status: res.status, data: payload, meta: data?.meta };
 }
 
 export const api = {

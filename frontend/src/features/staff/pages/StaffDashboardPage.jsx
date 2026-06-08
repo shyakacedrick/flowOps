@@ -2,6 +2,7 @@ import { Users, Clock, CheckCircle2, Activity, PhoneCall, SkipForward, AlertCirc
 import { Link } from 'react-router-dom';
 import StaffShell from '@/features/staff/components/StaffShell.jsx';
 import PageHeader, { StatCard } from '@/shared/components/PageHeader.jsx';
+import QueueManagerCard from '@/features/queue/components/QueueManagerCard.jsx';
 import { useSimulationSlice, useSimulationDispatch } from '@/engine/SimulationProvider.jsx';
 import { EVENT_TYPES, selectAverageWait } from '@/engine/flowOpsEngine.js';
 import { useEventLog } from '@/features/customer-feed/hooks/useEventLog.js';
@@ -151,6 +152,15 @@ export default function StaffDashboardPage() {
               ))}
             </ul>
           </section>
+
+          {/* Live queues — read-only for staff (writes require owner/admin) */}
+          <div className="xl:col-span-12">
+            <QueueManagerCard
+              readOnly
+              title="Your organization's queues"
+              subtitle="Read-only · only owners and platform admins can edit"
+            />
+          </div>
         </div>
       </div>
     </StaffShell>

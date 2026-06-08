@@ -8,6 +8,8 @@ import SmartInsightsPanel from '@/features/smart-insights/components/SmartInsigh
 import NextInLineTimeline from '@/features/queue/components/NextInLineTimeline.jsx';
 import SystemStatusCenter from '@/features/operations/components/SystemStatusCenter.jsx';
 import BootSequence from '@/features/operations/components/BootSequence.jsx';
+import QueueManagerCard from '@/features/queue/components/QueueManagerCard.jsx';
+import LiveTicketsCard from '@/features/queue/components/LiveTicketsCard.jsx';
 import { useSimulationSlice, useSimulationDispatch } from '@/engine/SimulationProvider.jsx';
 import {
   EVENT_TYPES,
@@ -103,6 +105,8 @@ export default function BusinessOwnerDashboard() {
         darkSlot={
           <div className="grid gap-5 xl:grid-cols-12">
             <div className="space-y-5 xl:col-span-8">
+              <QueueManagerCard />
+              <LiveTicketsCard />
               <CustomerFlowChart
                 totalServed={totalServed}
                 avgWait={avgWaitMins}

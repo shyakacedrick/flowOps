@@ -3,9 +3,11 @@ import ApiError from '../utils/ApiError.js';
 import { success, created } from '../utils/apiResponse.js';
 import { signToken } from '../utils/token.js';
 import User, { USER_ROLES } from '../models/User.js';
+import Organization, { ORGANIZATION_PLANS } from '../models/Organization.js';
 import {
   logUserRegistered,
   logUserLogin,
+  logOrganizationCreated,
 } from '../services/activityService.js';
 
 const buildAuthPayload = (user) => ({
@@ -19,7 +21,15 @@ const buildAuthPayload = (user) => ({
  * platform admin can create another platform admin (enforced here).
  */
 export const register = asyncHandler(async (req, res) => {
-  const { name, email, password, role, organizationId } = req.body || {};
+  const {
+    name,
+    email,
+    password,
+    role,
+    organizationId,
+    company,
+    plan,
+  } = req.body || {};
 
   if (!name || !email || !password) {
     throw ApiError.badRequest('name, email and password are required');
@@ -28,7 +38,14 @@ export const register = asyncHandler(async (req, res) => {
     throw ApiError.badRequest('Password must be at least 8 characters');
   }
 
-  const requestedRole = role || USER_ROLES.STAFF;
+  // If a `company` is supplied, this is a workspace-creation signup: the
+  // user becomes the business_owner of a brand-new organization.
+  const isWorkspaceSignup = typeof company === 'string' && company.trim().length > 0;
+
+  const requestedRole = isWorkspaceSignup
+    ? USER_ROLES.BUSINESS_OWNER
+    : role || USER_ROLES.STAFF;
+
   if (!Object.values(USER_ROLES).includes(requestedRole)) {
     throw ApiError.badRequest(
       `role must be one of: ${Object.values(USER_ROLES).join(', ')}`
@@ -44,6 +61,12 @@ export const register = asyncHandler(async (req, res) => {
     }
   }
 
+  if (plan && !ORGANIZATION_PLANS.includes(plan)) {
+    throw ApiError.badRequest(
+      `plan must be one of: ${ORGANIZATION_PLANS.join(', ')}`
+    );
+  }
+
   const existing = await User.findOne({ email: email.toLowerCase() });
   if (existing) throw ApiError.conflict('Email is already registered');
 
@@ -55,6 +78,19 @@ export const register = asyncHandler(async (req, res) => {
     role: requestedRole,
     organizationId: organizationId || null,
   });
+
+  // Provision the workspace organization for business-owner signups.
+  if (isWorkspaceSignup) {
+    const org = await Organization.create({
+      name: company.trim(),
+      industry: 'other', // owner can refine in settings later
+      plan: plan || 'starter',
+      ownerId: user._id,
+    });
+    user.organizationId = org._id;
+    await user.save();
+    await logOrganizationCreated(org, user);
+  }
 
   await logUserRegistered(user);
 

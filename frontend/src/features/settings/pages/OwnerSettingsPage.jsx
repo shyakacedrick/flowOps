@@ -1,7 +1,9 @@
-import { useState } from 'react';
-import { Building2, Bell, ShieldCheck, Users, MapPin, ListChecks, Save } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Building2, Bell, ShieldCheck, Users, MapPin, ListChecks, Save, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import HybridDashboardShell from '@/features/dashboard/components/HybridDashboardShell.jsx';
 import PageHeader from '@/shared/components/PageHeader.jsx';
+import { useAuth } from '@/app/providers/AuthProvider.jsx';
+import organizationApi from '@/services/organizationApi.js';
 
 /**
  * SettingsPage — "How do I configure FlowOps?"
@@ -28,11 +30,6 @@ export default function SettingsPage() {
           title="Settings"
           subtitle="Configure your business, queue policies, notifications, and team access."
           crumbs={[{ label: 'Workspace' }, { label: 'Settings' }]}
-          actions={
-            <button className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-cyan-400 to-blue-500 px-3.5 py-2 text-xs font-semibold text-slate-900 shadow-[0_0_22px_-6px_rgba(34,211,238,0.7)]">
-              <Save className="h-3.5 w-3.5" /> Save changes
-            </button>
-          }
         />
 
         <div className="grid gap-5 lg:grid-cols-12">
@@ -116,28 +113,165 @@ function Toggle({ label, hint, defaultOn = false }) {
 }
 
 function BusinessSection() {
+  const { session } = useAuth();
+  const orgId = session?.organizationId;
+
+  const [org, setOrg] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+
+  const [form, setForm] = useState({ name: '', industry: 'other', description: '' });
+  const [saving, setSaving] = useState(false);
+  const [saveOk, setSaveOk] = useState(false);
+  const [saveError, setSaveError] = useState('');
+
+  // Load org on mount.
+  useEffect(() => {
+    let cancelled = false;
+    async function run() {
+      if (!orgId) {
+        setLoading(false);
+        setLoadError('No organization linked to this account.');
+        return;
+      }
+      setLoading(true);
+      setLoadError('');
+      const res = await organizationApi.get(orgId);
+      if (cancelled) return;
+      if (!res.ok) {
+        setLoadError(res.message || 'Failed to load organization.');
+        setLoading(false);
+        return;
+      }
+      setOrg(res.data);
+      setForm({
+        name: res.data.name || '',
+        industry: res.data.industry || 'other',
+        description: res.data.description || '',
+      });
+      setLoading(false);
+    }
+    run();
+    return () => { cancelled = true; };
+  }, [orgId]);
+
+  const update = (k) => (e) => {
+    setForm((f) => ({ ...f, [k]: e.target.value }));
+    setSaveOk(false);
+    setSaveError('');
+  };
+
+  const isDirty =
+    org &&
+    (form.name !== (org.name || '') ||
+      form.industry !== (org.industry || 'other') ||
+      form.description !== (org.description || ''));
+
+  const onSave = async (e) => {
+    e.preventDefault();
+    if (!orgId || !isDirty || saving) return;
+    setSaving(true);
+    setSaveError('');
+    setSaveOk(false);
+    const res = await organizationApi.update(orgId, {
+      name: form.name.trim(),
+      industry: form.industry,
+      description: form.description.trim(),
+    });
+    setSaving(false);
+    if (!res.ok) {
+      setSaveError(res.message || 'Failed to save changes.');
+      return;
+    }
+    setOrg(res.data);
+    setSaveOk(true);
+  };
+
+  if (loading) {
+    return (
+      <Card title="Business profile" subtitle="Loading from /api/organizations…">
+        <div className="flex items-center gap-2 py-6 text-xs text-slate-400">
+          <Loader2 className="h-4 w-4 animate-spin" /> Fetching organization…
+        </div>
+      </Card>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <Card title="Business profile" subtitle="Public-facing information for your FlowOps account">
+        <div className="flex items-start gap-2 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200">
+          <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {loadError}
+        </div>
+      </Card>
+    );
+  }
+
   return (
     <Card title="Business profile" subtitle="Public-facing information for your FlowOps account">
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Business name"><input className={inputCls} defaultValue="Clarity Clinics" /></Field>
-        <Field label="Industry">
-          <select className={inputCls} defaultValue="clinic">
-            <option value="clinic">Clinic / healthcare</option>
-            <option value="bank">Bank</option>
-            <option value="restaurant">Restaurant</option>
-            <option value="salon">Salon</option>
-            <option value="gov">Government office</option>
-          </select>
+      <form onSubmit={onSave} className="space-y-4">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Business name">
+            <input
+              className={inputCls}
+              value={form.name}
+              onChange={update('name')}
+              required
+              minLength={2}
+              maxLength={120}
+            />
+          </Field>
+          <Field label="Industry">
+            <select className={inputCls} value={form.industry} onChange={update('industry')}>
+              <option value="clinic">Clinic / healthcare</option>
+              <option value="hospital">Hospital</option>
+              <option value="bank">Bank</option>
+              <option value="salon">Salon</option>
+              <option value="restaurant">Restaurant</option>
+              <option value="retail">Retail</option>
+              <option value="government">Government</option>
+              <option value="other">Other</option>
+            </select>
+          </Field>
+          <Field label="Plan" hint="Read-only — upgrades happen via billing">
+            <input className={inputCls} value={org.plan || 'starter'} disabled />
+          </Field>
+          <Field label="Organization ID" hint="Use this when inviting staff via the API">
+            <input className={inputCls} value={org._id} readOnly />
+          </Field>
+        </div>
+
+        <Field label="Description" hint="Shown on customer-facing pages">
+          <textarea
+            className={`${inputCls} min-h-[80px]`}
+            value={form.description}
+            onChange={update('description')}
+            maxLength={1000}
+          />
         </Field>
-        <Field label="Contact email"><input className={inputCls} defaultValue="ops@clarityclinics.io" /></Field>
-        <Field label="Phone"><input className={inputCls} defaultValue="+1 (415) 555-0123" /></Field>
-        <Field label="Business hours" hint="Used to compute coverage gaps">
-          <input className={inputCls} defaultValue="Mon–Sat · 08:00 – 19:00" />
-        </Field>
-        <Field label="Timezone">
-          <select className={inputCls} defaultValue="pst"><option value="pst">Pacific (PST)</option><option value="est">Eastern (EST)</option><option value="utc">UTC</option></select>
-        </Field>
-      </div>
+
+        {saveError && (
+          <div className="flex items-start gap-2 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200">
+            <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {saveError}
+          </div>
+        )}
+        {saveOk && (
+          <div className="flex items-start gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
+            <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0" /> Saved.
+          </div>
+        )}
+
+        <div className="flex justify-end">
+          <button
+            type="submit"
+            disabled={!isDirty || saving}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-cyan-400 to-blue-500 px-3.5 py-2 text-xs font-semibold text-slate-900 shadow-[0_0_22px_-6px_rgba(34,211,238,0.7)] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+            {saving ? 'Saving…' : 'Save changes'}
+          </button>
+        </div>
+      </form>
     </Card>
   );
 }

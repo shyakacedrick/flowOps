@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import StaffShell from '@/features/staff/components/StaffShell.jsx';
 import PageHeader, { StatCard } from '@/shared/components/PageHeader.jsx';
+import LiveTicketsCard from '@/features/queue/components/LiveTicketsCard.jsx';
 import { useSimulationSlice, useSimulationDispatch } from '@/engine/SimulationProvider.jsx';
 import { EVENT_TYPES, selectAverageWait, selectEstimatedWait } from '@/engine/flowOpsEngine.js';
 
@@ -57,6 +58,12 @@ export default function MyQueuePage() {
             query={query} setQuery={setQuery}
           />
         </div>
+
+        {/* Real backend tickets, live-polled, sits below the simulation panels */}
+        <LiveTicketsCard
+          title="Live backend tickets"
+          subtitle="Real data from /api/tickets · org-scoped · polls every 4s"
+        />
       </div>
     </StaffShell>
   );
