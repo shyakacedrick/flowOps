@@ -8,6 +8,7 @@ import {
   getQueue,
   updateQueue,
   deleteQueue,
+  restoreQueue,
 } from '../controllers/queueController.js';
 
 const router = Router();
@@ -33,6 +34,13 @@ router.delete(
   '/:id',
   authorizeRoles(USER_ROLES.PLATFORM_ADMIN, USER_ROLES.BUSINESS_OWNER),
   deleteQueue
+);
+
+// Soft-delete restore — platform admin only.
+router.post(
+  '/:id/restore',
+  authorizeRoles(USER_ROLES.PLATFORM_ADMIN),
+  restoreQueue
 );
 
 export default router;

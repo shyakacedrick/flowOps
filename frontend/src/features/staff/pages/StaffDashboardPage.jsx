@@ -162,9 +162,9 @@ export default function StaffDashboardPage() {
           <StatCard label="Queue status" value={queue?.status || '—'} delta={ticketsStatus === 'error' ? 'API offline' : 'Live'} tone="rose" />
         </div>
 
-        <div className="grid gap-5 xl:grid-cols-12">
+        <div className="grid gap-5 lg:grid-cols-12">
           {/* Quick actions */}
-          <section className="rounded-3xl border border-white/[0.06] bg-white/[0.02] p-5 xl:col-span-7">
+          <section className="rounded-3xl border border-white/[0.06] bg-white/[0.02] p-5 lg:col-span-7">
             <div className="flex items-baseline justify-between">
               <div>
                 <h3 className="text-sm font-semibold text-white">Quick actions</h3>
@@ -235,7 +235,7 @@ export default function StaffDashboardPage() {
           </section>
 
           {/* Shift progress (placeholder until Phase 13) */}
-          <section className="rounded-3xl border border-white/[0.06] bg-white/[0.02] p-5 xl:col-span-5">
+          <section className="rounded-3xl border border-white/[0.06] bg-white/[0.02] p-5 lg:col-span-5">
             <h3 className="text-sm font-semibold text-white">Shift progress</h3>
             <p className="text-xs text-slate-400">09:00 — 17:00 · Desk 2</p>
 
@@ -276,7 +276,7 @@ export default function StaffDashboardPage() {
           </section>
 
           {/* Waiting list snapshot */}
-          <section className="rounded-3xl border border-white/[0.06] bg-white/[0.02] p-5 xl:col-span-7">
+          <section className="rounded-3xl border border-white/[0.06] bg-white/[0.02] p-5 lg:col-span-7">
             <div className="flex items-baseline justify-between">
               <div>
                 <h3 className="text-sm font-semibold text-white">Waiting line</h3>
@@ -334,12 +334,12 @@ export default function StaffDashboardPage() {
           </section>
 
           {/* Recent activity (real backend feed) */}
-          <section className="xl:col-span-5">
+          <section className="lg:col-span-5">
             <BackendActivityTimeline />
           </section>
 
           {/* Live queues — read-only for staff (writes require owner/admin) */}
-          <div className="xl:col-span-12">
+          <div className="lg:col-span-12">
             <QueueManagerCard
               readOnly
               title="Your organization's queues"

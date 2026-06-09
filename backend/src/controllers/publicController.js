@@ -63,7 +63,7 @@ export const getPublicQueue = asyncHandler(async (req, res) => {
   assertObjectId(queueId, 'queueId');
 
   const queue = await Queue.findById(queueId);
-  if (!queue) throw ApiError.notFound('Queue not found');
+  if (!queue || queue.deletedAt) throw ApiError.notFound('Queue not found');
 
   const org = await Organization.findById(queue.organizationId);
   if (!org) throw ApiError.notFound('Organization not found');
@@ -71,6 +71,7 @@ export const getPublicQueue = asyncHandler(async (req, res) => {
   const waitingCount = await Ticket.countDocuments({
     queueId: queue._id,
     status: TICKET_STATUSES.WAITING,
+    deletedAt: null,
   });
 
   return success(res, publicQueueView(queue, org, waitingCount));
@@ -96,7 +97,7 @@ export const joinQueuePublic = asyncHandler(async (req, res) => {
   }
 
   const queue = await Queue.findById(queueId);
-  if (!queue) throw ApiError.notFound('Queue not found');
+  if (!queue || queue.deletedAt) throw ApiError.notFound('Queue not found');
 
   if (queue.status !== QUEUE_STATUSES.ACTIVE) {
     // 410 Gone reads better here than 400 — the resource exists but is
@@ -141,7 +142,7 @@ export const getPublicTicket = asyncHandler(async (req, res) => {
   assertObjectId(ticketId, 'ticketId');
 
   const ticket = await Ticket.findById(ticketId);
-  if (!ticket) throw ApiError.notFound('Ticket not found');
+  if (!ticket || ticket.deletedAt) throw ApiError.notFound('Ticket not found');
 
   const position = await positionForWaitingTicket(ticket);
   return success(res, publicTicketView(ticket, position));
@@ -158,6 +159,7 @@ async function positionForWaitingTicket(ticket) {
   const ahead = await Ticket.countDocuments({
     queueId: ticket.queueId,
     status: TICKET_STATUSES.WAITING,
+    deletedAt: null,
     joinedAt: { $lt: ticket.joinedAt },
   });
   return ahead + 1;

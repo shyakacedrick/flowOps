@@ -39,6 +39,17 @@ const queueSchema = new mongoose.Schema(
       default: 0,
       min: 0,
     },
+    /**
+     * Soft-delete tombstone. When set, the queue is hidden from every
+     * normal list/get endpoint but still resolvable by id for audit
+     * trails. Set by DELETE /api/queues/:id; cleared by an admin-only
+     * restore endpoint.
+     */
+    deletedAt: {
+      type: Date,
+      default: null,
+      index: true,
+    },
   },
   {
     timestamps: true,

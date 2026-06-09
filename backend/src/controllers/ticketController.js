@@ -47,7 +47,7 @@ export const createTicket = asyncHandler(async (req, res) => {
   }
   assertObjectId(queueId, 'queueId');
 
-  const queue = await Queue.findOne(orgScope(req.user, { _id: queueId }));
+  const queue = await Queue.findOne(orgScope(req.user, { _id: queueId, deletedAt: null }));
   if (!queue) throw ApiError.notFound('Queue not found');
 
   if (queue.status !== QUEUE_STATUSES.ACTIVE) {
@@ -78,9 +78,10 @@ export const createTicket = asyncHandler(async (req, res) => {
 /**
  * GET /api/tickets
  * Optional filters: ?queueId=...&status=waiting
+ * Soft-deleted tickets are always hidden from this endpoint.
  */
 export const listTickets = asyncHandler(async (req, res) => {
-  const filter = {};
+  const filter = { deletedAt: null };
   if (req.query.queueId) {
     assertObjectId(req.query.queueId, 'queueId');
     filter.queueId = req.query.queueId;
@@ -99,7 +100,9 @@ export const listTickets = asyncHandler(async (req, res) => {
  */
 export const getTicket = asyncHandler(async (req, res) => {
   assertObjectId(req.params.id);
-  const ticket = await Ticket.findOne(orgScope(req.user, { _id: req.params.id }));
+  const baseFilter = { _id: req.params.id };
+  if (req.user.role !== USER_ROLES.PLATFORM_ADMIN) baseFilter.deletedAt = null;
+  const ticket = await Ticket.findOne(orgScope(req.user, baseFilter));
   if (!ticket) throw ApiError.notFound('Ticket not found');
   return success(res, ticket);
 });
@@ -110,7 +113,7 @@ export const getTicket = asyncHandler(async (req, res) => {
  */
 export const updateTicket = asyncHandler(async (req, res) => {
   assertObjectId(req.params.id);
-  const ticket = await Ticket.findOne(orgScope(req.user, { _id: req.params.id }));
+  const ticket = await Ticket.findOne(orgScope(req.user, { _id: req.params.id, deletedAt: null }));
   if (!ticket) throw ApiError.notFound('Ticket not found');
 
   const previousStatus = ticket.status;
@@ -151,12 +154,15 @@ export const updateTicket = asyncHandler(async (req, res) => {
 
 /**
  * DELETE /api/tickets/:id
+ * Soft-delete — tombstones the ticket so historical analytics and
+ * activity entries that reference it remain coherent.
  */
 export const deleteTicket = asyncHandler(async (req, res) => {
   assertObjectId(req.params.id);
-  const ticket = await Ticket.findOne(orgScope(req.user, { _id: req.params.id }));
+  const ticket = await Ticket.findOne(orgScope(req.user, { _id: req.params.id, deletedAt: null }));
   if (!ticket) throw ApiError.notFound('Ticket not found');
-  await ticket.deleteOne();
+  ticket.deletedAt = new Date();
+  await ticket.save();
   return noContent(res);
 });
 

@@ -21,6 +21,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import AdminLayout from '@/features/admin/components/AdminShell.jsx';
 import PageHeader, { StatCard } from '@/shared/components/PageHeader.jsx';
 import useOrganizations from '@/features/admin/hooks/useOrganizations.js';
+import { useToast } from '@/shared/components/ToastProvider.jsx';
 
 const PLAN_OPTIONS = ['starter', 'growth', 'scale'];
 const INDUSTRY_LABELS = {
@@ -253,15 +254,19 @@ function OrgDrawerBody({ org, onClose, onSave }) {
   const [plan,   setPlan]   = useState(org.plan || 'starter');
   const [reason, setReason] = useState(org.suspensionReason || '');
   const [busy,   setBusy]   = useState(null); // 'plan' | 'suspend' | 'unsuspend' | null
-  const [error,  setError]  = useState(null);
+  const toast = useToast();
 
   const suspended = !!org.suspendedAt;
 
-  const save = async (kind, body) => {
-    setBusy(kind); setError(null);
+  const save = async (kind, body, successMsg) => {
+    setBusy(kind);
     const res = await onSave(org._id, body);
     setBusy(null);
-    if (!res.ok) setError(res.message || 'Update failed');
+    if (!res.ok) {
+      toast.error(res.message || 'Update failed');
+      return;
+    }
+    if (successMsg) toast.success(successMsg);
   };
 
   return (
@@ -298,13 +303,6 @@ function OrgDrawerBody({ org, onClose, onSave }) {
         </p>
       )}
 
-      {error && (
-        <div className="mt-4 flex items-start gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
-          <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          {error}
-        </div>
-      )}
-
       {/* Plan */}
       <div className="mt-6">
         <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Change plan</p>
@@ -317,7 +315,7 @@ function OrgDrawerBody({ org, onClose, onSave }) {
             {PLAN_OPTIONS.map((p) => <option key={p} value={p}>{p}</option>)}
           </select>
           <button
-            onClick={() => save('plan', { plan })}
+            onClick={() => save('plan', { plan }, `Plan changed to ${plan}`)}
             disabled={busy === 'plan' || plan === org.plan}
             className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-violet-500 to-cyan-500 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
           >
@@ -339,7 +337,7 @@ function OrgDrawerBody({ org, onClose, onSave }) {
               {org.suspensionReason ? ` Reason: ${org.suspensionReason}` : ''}
             </p>
             <button
-              onClick={() => save('unsuspend', { suspended: false })}
+              onClick={() => save('unsuspend', { suspended: false }, `${org.name} unsuspended`)}
               disabled={busy === 'unsuspend'}
               className="mt-3 w-full rounded-xl border border-emerald-400/40 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-200 hover:bg-emerald-500/20 disabled:opacity-50"
             >
@@ -357,7 +355,7 @@ function OrgDrawerBody({ org, onClose, onSave }) {
               className="mt-2 w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-slate-200 placeholder:text-slate-500 focus:border-rose-400/40 focus:outline-none"
             />
             <button
-              onClick={() => save('suspend', { suspended: true, suspensionReason: reason })}
+              onClick={() => save('suspend', { suspended: true, suspensionReason: reason }, `${org.name} suspended`)}
               disabled={busy === 'suspend'}
               className="mt-2 w-full rounded-xl border border-rose-400/40 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-200 hover:bg-rose-500/20 disabled:opacity-50"
             >

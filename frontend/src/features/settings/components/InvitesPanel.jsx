@@ -9,6 +9,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Loader2, Mail, Plus, Copy, Check, Trash2, AlertCircle, ShieldCheck, Send } from 'lucide-react';
 import inviteApi from '@/services/inviteApi.js';
 import { useConfirm } from '@/shared/components/ConfirmProvider.jsx';
+import { useToast }   from '@/shared/components/ToastProvider.jsx';
 
 const ROLE_LABEL = {
   business_owner: 'Owner',
@@ -37,6 +38,7 @@ export default function InvitesPanel() {
   const [busyIds, setBusyIds] = useState(() => new Set());
 
   const confirm = useConfirm();
+  const toast   = useToast();
 
   const load = useCallback(async () => {
     setStatus('loading');
@@ -67,6 +69,7 @@ export default function InvitesPanel() {
     }
     setEmail('');
     setInvites((prev) => [res.data, ...prev]);
+    toast.success(`Invite sent to ${trimmed}`);
   };
 
   const onCopy = async (invite) => {
@@ -89,7 +92,7 @@ export default function InvitesPanel() {
     const res = await inviteApi.revoke(invite._id);
     setBusyIds((prev) => { const n = new Set(prev); n.delete(invite._id); return n; });
     if (!res.ok) {
-      setFormError(res.message || 'Failed to revoke invite');
+      toast.error(res.message || 'Failed to revoke invite');
       return;
     }
     // Optimistically mark it revoked in the local list.
@@ -98,6 +101,7 @@ export default function InvitesPanel() {
         i._id === invite._id ? { ...i, status: 'revoked', revokedAt: new Date().toISOString() } : i
       )
     );
+    toast.success(`Invite for ${invite.email} revoked`);
   };
 
   return (

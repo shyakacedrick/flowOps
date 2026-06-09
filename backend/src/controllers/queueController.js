@@ -30,6 +30,7 @@ const assertObjectId = (id, label = 'id') => {
 /**
  * GET /api/queues
  * Optional filters: ?status=active&organizationId=...
+ * Admin-only: ?includeDeleted=true returns soft-deleted queues as well.
  */
 export const listQueues = asyncHandler(async (req, res) => {
   const filter = {};
@@ -37,6 +38,13 @@ export const listQueues = asyncHandler(async (req, res) => {
   if (req.query.organizationId && req.user.role === USER_ROLES.PLATFORM_ADMIN) {
     filter.organizationId = req.query.organizationId;
   }
+  // Soft-delete: only platform_admin can opt-in to seeing tombstoned rows.
+  // Everyone else gets the live set only.
+  const includeDeleted =
+    req.user.role === USER_ROLES.PLATFORM_ADMIN &&
+    String(req.query.includeDeleted) === 'true';
+  if (!includeDeleted) filter.deletedAt = null;
+
   const queues = await Queue.find(orgScope(req.user, filter)).sort({ createdAt: -1 });
   return success(res, queues);
 });
@@ -71,10 +79,13 @@ export const createQueue = asyncHandler(async (req, res) => {
 
 /**
  * GET /api/queues/:id
+ * Soft-deleted queues are only returned to platform_admin.
  */
 export const getQueue = asyncHandler(async (req, res) => {
   assertObjectId(req.params.id);
-  const queue = await Queue.findOne(orgScope(req.user, { _id: req.params.id }));
+  const baseFilter = { _id: req.params.id };
+  if (req.user.role !== USER_ROLES.PLATFORM_ADMIN) baseFilter.deletedAt = null;
+  const queue = await Queue.findOne(orgScope(req.user, baseFilter));
   if (!queue) throw ApiError.notFound('Queue not found');
   return success(res, queue);
 });
@@ -84,7 +95,7 @@ export const getQueue = asyncHandler(async (req, res) => {
  */
 export const updateQueue = asyncHandler(async (req, res) => {
   assertObjectId(req.params.id);
-  const queue = await Queue.findOne(orgScope(req.user, { _id: req.params.id }));
+  const queue = await Queue.findOne(orgScope(req.user, { _id: req.params.id, deletedAt: null }));
   if (!queue) throw ApiError.notFound('Queue not found');
 
   // Staff are read-only on queues.
@@ -108,19 +119,43 @@ export const updateQueue = asyncHandler(async (req, res) => {
 
 /**
  * DELETE /api/queues/:id
+ * Soft-delete — sets `deletedAt` instead of removing the document. The
+ * row stays in the database so historical activity entries remain
+ * coherent and a platform admin can restore it via POST /:id/restore.
  */
 export const deleteQueue = asyncHandler(async (req, res) => {
   assertObjectId(req.params.id);
-  const queue = await Queue.findOne(orgScope(req.user, { _id: req.params.id }));
+  const queue = await Queue.findOne(orgScope(req.user, { _id: req.params.id, deletedAt: null }));
   if (!queue) throw ApiError.notFound('Queue not found');
 
   if (req.user.role === USER_ROLES.STAFF) {
     throw ApiError.forbidden('Staff cannot delete queues');
   }
 
-  await queue.deleteOne();
+  queue.deletedAt = new Date();
+  await queue.save();
   await logQueueDeleted(queue, req.user);
   return noContent(res);
+});
+
+/**
+ * POST /api/queues/:id/restore (platform_admin only)
+ * Clears the soft-delete tombstone and brings the queue back into the
+ * live set. The route layer enforces role; we still defensively check
+ * here in case the controller is ever wired differently.
+ */
+export const restoreQueue = asyncHandler(async (req, res) => {
+  if (req.user.role !== USER_ROLES.PLATFORM_ADMIN) {
+    throw ApiError.forbidden('Only platform admins can restore queues');
+  }
+  assertObjectId(req.params.id);
+  const queue = await Queue.findById(req.params.id);
+  if (!queue) throw ApiError.notFound('Queue not found');
+  if (!queue.deletedAt) return success(res, queue);
+
+  queue.deletedAt = null;
+  await queue.save();
+  return success(res, queue);
 });
 
 export default {
@@ -129,4 +164,5 @@ export default {
   getQueue,
   updateQueue,
   deleteQueue,
+  restoreQueue,
 };

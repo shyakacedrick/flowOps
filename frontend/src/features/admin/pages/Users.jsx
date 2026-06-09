@@ -22,6 +22,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import AdminLayout from '@/features/admin/components/AdminShell.jsx';
 import PageHeader, { StatCard } from '@/shared/components/PageHeader.jsx';
 import useUsers from '@/features/admin/hooks/useUsers.js';
+import { useToast } from '@/shared/components/ToastProvider.jsx';
 import { useAuth } from '@/app/providers/AuthProvider.jsx';
 
 const ROLE_OPTIONS = ['platform_admin', 'business_owner', 'staff'];
@@ -260,17 +261,21 @@ function UserDrawer({ user, meId, onClose, onSave }) {
 function UserDrawerBody({ user, meId, onClose, onSave }) {
   const [role,  setRole]  = useState(user.role);
   const [busy,  setBusy]  = useState(null);
-  const [error, setError] = useState(null);
+  const toast = useToast();
 
   const isSelf     = String(user._id) === String(meId);
   const suspended  = !!user.suspendedAt;
   const orgName    = typeof user.organizationId === 'object' ? user.organizationId?.name : null;
 
-  const save = async (kind, body) => {
-    setBusy(kind); setError(null);
+  const save = async (kind, body, successMsg) => {
+    setBusy(kind);
     const res = await onSave(user._id, body);
     setBusy(null);
-    if (!res.ok) setError(res.message || 'Update failed');
+    if (!res.ok) {
+      toast.error(res.message || 'Update failed');
+      return;
+    }
+    if (successMsg) toast.success(successMsg);
   };
 
   // We disable buttons the server would reject so the user sees the constraint
@@ -311,13 +316,6 @@ function UserDrawerBody({ user, meId, onClose, onSave }) {
         />
       </div>
 
-      {error && (
-        <div className="mt-4 flex items-start gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-200">
-          <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          {error}
-        </div>
-      )}
-
       {/* Role */}
       <div className="mt-6">
         <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Change role</p>
@@ -330,7 +328,7 @@ function UserDrawerBody({ user, meId, onClose, onSave }) {
             {ROLE_OPTIONS.map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
           </select>
           <button
-            onClick={() => save('role', { role })}
+            onClick={() => save('role', { role }, `Role changed to ${ROLE_LABEL[role] || role}`)}
             disabled={busy === 'role' || role === user.role || cannotDemote}
             title={cannotDemote ? "You can't demote yourself" : undefined}
             className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-violet-500 to-cyan-500 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
@@ -353,7 +351,7 @@ function UserDrawerBody({ user, meId, onClose, onSave }) {
           <>
             <p className="mt-2 text-xs text-slate-400">Suspended since {fmtDate(user.suspendedAt)}.</p>
             <button
-              onClick={() => save('unsuspend', { suspended: false })}
+              onClick={() => save('unsuspend', { suspended: false }, `${user.name} unsuspended`)}
               disabled={busy === 'unsuspend'}
               className="mt-3 w-full rounded-xl border border-emerald-400/40 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-200 hover:bg-emerald-500/20 disabled:opacity-50"
             >
@@ -363,7 +361,7 @@ function UserDrawerBody({ user, meId, onClose, onSave }) {
         ) : (
           <>
             <button
-              onClick={() => save('suspend', { suspended: true })}
+              onClick={() => save('suspend', { suspended: true }, `${user.name} suspended`)}
               disabled={busy === 'suspend' || cannotSuspend}
               title={cannotSuspend
                 ? (isSelf ? "You can't suspend yourself" : 'Platform admins cannot be suspended')

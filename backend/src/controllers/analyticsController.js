@@ -75,15 +75,16 @@ export const getSummary = asyncHandler(async (req, res) => {
   const prevSince = new Date(since.getTime() - cfg.ms);
 
   // ── Single pass over tickets joined in window ────────────────────────
+  // Soft-deleted tickets are excluded — they're no longer real events.
   const windowed = await Ticket.find(
-    { ...scope, joinedAt: { $gte: since } },
+    { ...scope, deletedAt: null, joinedAt: { $gte: since } },
     'status joinedAt servedAt queueId'
   ).lean();
 
   // ── Previous-equal-length window, used only for delta comparisons ────
   // Cheaper than a second aggregation pipeline: same shape, smaller projection.
   const prevWindow = await Ticket.find(
-    { ...scope, joinedAt: { $gte: prevSince, $lt: since } },
+    { ...scope, deletedAt: null, joinedAt: { $gte: prevSince, $lt: since } },
     'status joinedAt servedAt'
   ).lean();
 
@@ -93,10 +94,10 @@ export const getSummary = asyncHandler(async (req, res) => {
   // bucket them by *current* age, which is what `Queue health` displays.
   const [waitingDocs, servingNow] = await Promise.all([
     Ticket.find(
-      { ...scope, status: TICKET_STATUSES.WAITING },
+      { ...scope, deletedAt: null, status: TICKET_STATUSES.WAITING },
       'joinedAt'
     ).lean(),
-    Ticket.countDocuments({ ...scope, status: TICKET_STATUSES.SERVING }),
+    Ticket.countDocuments({ ...scope, deletedAt: null, status: TICKET_STATUSES.SERVING }),
   ]);
   const waitingNow = waitingDocs.length;
 

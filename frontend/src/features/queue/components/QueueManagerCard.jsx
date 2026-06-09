@@ -15,6 +15,7 @@ import { Loader2, Plus, Pause, Play, Trash2, RefreshCw, AlertCircle, QrCode, X, 
 import { QRCodeSVG } from 'qrcode.react';
 import { useQueues } from '@/features/queue/hooks/useQueues.js';
 import { useConfirm } from '@/shared/components/ConfirmProvider.jsx';
+import { useToast }   from '@/shared/components/ToastProvider.jsx';
 import queueApi from '@/services/queueApi.js';
 
 const STATUS_STYLES = {
@@ -46,6 +47,7 @@ export default function QueueManagerCard({
   const [formError, setFormError] = useState('');
   const [shareQueue, setShareQueue] = useState(null);
   const confirm = useConfirm();
+  const toast   = useToast();
 
   const isBusy = (id) => busyIds.has(id);
   const markBusy = (id) =>
@@ -95,6 +97,7 @@ export default function QueueManagerCard({
     }
     // Swap the placeholder for the real server-issued record.
     replaceQueue(tempId, res.data);
+    toast.success(`Queue “${trimmed}” created`);
   };
 
   const onToggleStatus = async (q) => {
@@ -114,8 +117,10 @@ export default function QueueManagerCard({
     if (!res.ok) {
       // Rollback the badge.
       updateQueueOptimistic(q._id, { status: prevStatus });
-      setFormError(res.message || 'Failed to update queue.');
+      toast.error(res.message || 'Failed to update queue.');
+      return;
     }
+    toast.success(`Queue ${nextStatus === 'active' ? 'resumed' : 'paused'}`);
   };
 
   const onDelete = async (q) => {
@@ -141,12 +146,14 @@ export default function QueueManagerCard({
     if (!res.ok) {
       // Re-insert at the top — ordering after rollback is best-effort.
       addQueueOptimistic(snapshot);
-      setFormError(res.message || 'Failed to delete queue.');
+      toast.error(res.message || 'Failed to delete queue.');
+      return;
     }
+    toast.success(`Queue “${q.name}” deleted`);
   };
 
   return (
-    <section className="rounded-3xl border border-white/[0.06] bg-white/[0.02] p-5">
+    <section id="queue-manager" className="rounded-3xl border border-white/[0.06] bg-white/[0.02] p-5">
       {/* Header */}
       <div className="flex items-start justify-between gap-3">
         <div>

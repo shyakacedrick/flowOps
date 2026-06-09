@@ -12,7 +12,10 @@
 //    GET /api/activities                  → live activity feed
 // ============================================================================
 
-import { useMemo, useState } from 'react';import HybridDashboardShell from '@/features/dashboard/components/HybridDashboardShell.jsx';
+import { useMemo, useState } from 'react';
+import { ArrowRight, ListPlus, QrCode } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import HybridDashboardShell from '@/features/dashboard/components/HybridDashboardShell.jsx';
 import CustomerFlowChart from '@/features/analytics/components/CustomerFlowChart.jsx';
 import OperationalQuickGrid from '@/features/operations/components/OperationalQuickGrid.jsx';
 import QueueHealthPanel from '@/features/queue/components/QueueHealthPanel.jsx';
@@ -112,9 +115,13 @@ export default function BusinessOwnerDashboard() {
 
       <HybridDashboardShell
         darkSlot={
-          <div className="grid gap-5 xl:grid-cols-12">
+          <div className="grid gap-5 lg:grid-cols-12">
             {/* ── Main column: monitor first, manage last ───────────── */}
-            <div className="space-y-5 xl:col-span-8">
+            <div className="space-y-5 lg:col-span-8">
+              <OnboardingCard
+                queues={queues}
+                totalActivity={(totals.served ?? 0) + (totals.waitingNow ?? 0) + (totals.servingNow ?? 0)}
+              />
               {/* 1. Headline analytics — the reason this page exists */}
               <CustomerFlowChart
                 totalServed={totalServed}
@@ -149,7 +156,7 @@ export default function BusinessOwnerDashboard() {
             </div>
 
             {/* ── Right rail: glance widgets clustered together ─────── */}
-            <div className="space-y-5 xl:col-span-4">
+            <div className="space-y-5 lg:col-span-4">
               <QueueHealthPanel
                 normal={normal}
                 delayed={delayed}
@@ -174,11 +181,11 @@ export default function BusinessOwnerDashboard() {
           </div>
         }
         lightSlot={
-          <div className="grid gap-5 xl:grid-cols-12">
-            <div className="xl:col-span-8">
+          <div className="grid gap-5 lg:grid-cols-12">
+            <div className="lg:col-span-8">
               <BackendActivityTimeline />
             </div>
-            <div className="space-y-5 xl:col-span-4">
+            <div className="space-y-5 lg:col-span-4">
               <SmartInsightsPanel />
             </div>
           </div>
@@ -196,6 +203,91 @@ function EmptyNextInLine() {
       <p className="mt-5 text-center text-xs text-slate-500">
         No customers currently waiting. Share your queue's QR code to start the flow.
       </p>
+    </section>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Onboarding card — shown only when the workspace is still empty.
+//
+//  Two states:
+//    1. No queues exist          → prompt to create the first queue.
+//    2. Queues exist, zero       → prompt to share the queue's customer link,
+//       lifetime activity          since the operational shell is set up but
+//                                   no one has joined yet.
+//  Once the org has any served / waiting / serving ticket activity, the card
+//  silently disappears — this is a get-you-started nudge, not a permanent UI.
+// ─────────────────────────────────────────────────────────────────────────────
+function OnboardingCard({ queues, totalActivity }) {
+  const noQueues = queues.length === 0;
+  const noActivity = !noQueues && totalActivity === 0;
+
+  if (!noQueues && !noActivity) return null;
+
+  if (noQueues) {
+    return (
+      <section
+        className="relative overflow-hidden rounded-3xl border border-cyan-400/30 bg-gradient-to-br from-cyan-500/10 via-blue-500/5 to-violet-500/10 p-5"
+      >
+        <div className="flex items-start gap-4">
+          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-cyan-400 to-blue-500 text-slate-900 shadow-[0_0_24px_-6px_rgba(34,211,238,0.7)]">
+            <ListPlus className="h-6 w-6" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-cyan-300">
+              Welcome to FlowOps
+            </p>
+            <h3 className="mt-1 text-lg font-bold text-white">Create your first queue</h3>
+            <p className="mt-1 text-xs text-slate-300">
+              A queue is a line of customers waiting for one of your services or
+              counters. Scroll down to <span className="font-semibold text-white">Queue manager</span>{' '}
+              and add one to see live tickets, analytics and AI insights appear here.
+            </p>
+          </div>
+          <a
+            href="#queue-manager"
+            onClick={(e) => {
+              // Soft anchor — the manager card lives further down in the same page.
+              const el = document.getElementById('queue-manager');
+              if (el) { e.preventDefault(); el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+            }}
+            className="hidden shrink-0 items-center gap-1.5 rounded-xl bg-gradient-to-r from-cyan-400 to-blue-500 px-3.5 py-2 text-xs font-semibold text-slate-900 shadow-[0_0_22px_-6px_rgba(34,211,238,0.7)] sm:inline-flex"
+          >
+            Create queue <ArrowRight className="h-3.5 w-3.5" />
+          </a>
+        </div>
+      </section>
+    );
+  }
+
+  // queues exist but zero traffic
+  return (
+    <section
+      className="relative overflow-hidden rounded-3xl border border-violet-400/30 bg-gradient-to-br from-violet-500/10 via-cyan-500/5 to-slate-900/30 p-5"
+    >
+      <div className="flex items-start gap-4">
+        <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-violet-500 to-cyan-500 text-white">
+          <QrCode className="h-6 w-6" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-violet-200">
+            Almost there
+          </p>
+          <h3 className="mt-1 text-lg font-bold text-white">Share your queue with customers</h3>
+          <p className="mt-1 text-xs text-slate-300">
+            Your queue is live but nobody has joined yet. Open the{' '}
+            <span className="font-semibold text-white">Queue manager</span> below and
+            click the QR icon next to a queue to grab the customer link — print it,
+            text it, or stick it at your counter.
+          </p>
+        </div>
+        <Link
+          to="/owner/queues"
+          className="hidden shrink-0 items-center gap-1.5 rounded-xl border border-violet-400/40 bg-violet-500/10 px-3.5 py-2 text-xs font-semibold text-violet-100 hover:bg-violet-500/20 sm:inline-flex"
+        >
+          Manage queues <ArrowRight className="h-3.5 w-3.5" />
+        </Link>
+      </div>
     </section>
   );
 }

@@ -17,6 +17,7 @@ import {
 import { useQueues } from '@/features/queue/hooks/useQueues.js';
 import { useTickets } from '@/features/queue/hooks/useTickets.js';
 import { useConfirm } from '@/shared/components/ConfirmProvider.jsx';
+import { useToast }   from '@/shared/components/ToastProvider.jsx';
 import ticketApi from '@/services/ticketApi.js';
 
 const STATUS_TONE = {
@@ -31,6 +32,7 @@ export default function LiveTicketsCard({ title = 'Live tickets', subtitle }) {
   const { queues, status: qStatus } = useQueues();
   const [selectedQueueId, setSelectedQueueId] = useState('');
   const confirm = useConfirm();
+  const toast   = useToast();
 
   // Default-select the first active queue once queues load.
   useEffect(() => {
@@ -105,6 +107,7 @@ export default function LiveTicketsCard({ title = 'Live tickets', subtitle }) {
       return;
     }
     replace(tempId, res.data);
+    toast.success(`Added ${trimmed} to the queue`);
   };
 
   const onTransition = async (t, nextStatus) => {
@@ -120,7 +123,7 @@ export default function LiveTicketsCard({ title = 'Live tickets', subtitle }) {
 
     if (!res.ok) {
       updateOptimistic(t._id, { status: prev });
-      setFormError(res.message || 'Could not update ticket.');
+      toast.error(res.message || 'Could not update ticket.');
     }
   };
 

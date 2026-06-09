@@ -28,6 +28,7 @@ export default {
         'slide-up': 'slideUp 0.7s ease-out forwards',
         'glow-pulse': 'glowPulse 3s ease-in-out infinite',
         'float': 'float 6s ease-in-out infinite',
+        'toast-in': 'toastIn 0.18s ease-out forwards',
       },
       keyframes: {
         fadeIn: {
@@ -45,6 +46,10 @@ export default {
         float: {
           '0%, 100%': { transform: 'translateY(0px)' },
           '50%': { transform: 'translateY(-10px)' },
+        },
+        toastIn: {
+          '0%':   { opacity: 0, transform: 'translateY(-6px) scale(0.98)' },
+          '100%': { opacity: 1, transform: 'translateY(0)    scale(1)'    },
         },
       },
       backgroundImage: {

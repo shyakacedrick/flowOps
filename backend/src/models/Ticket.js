@@ -55,6 +55,17 @@ const ticketSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    /**
+     * Soft-delete tombstone. Set when a ticket is explicitly removed
+     * (e.g. queue purge). Hidden from all standard reads. Kept in the
+     * collection so historical activity entries that reference this
+     * ticket id remain meaningful.
+     */
+    deletedAt: {
+      type: Date,
+      default: null,
+      index: true,
+    },
   },
   {
     timestamps: true,

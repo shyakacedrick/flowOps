@@ -3,6 +3,7 @@ import { Building2, Bell, ShieldCheck, Users, MapPin, ListChecks, Save, Loader2,
 import HybridDashboardShell from '@/features/dashboard/components/HybridDashboardShell.jsx';
 import PageHeader from '@/shared/components/PageHeader.jsx';
 import { useAuth } from '@/app/providers/AuthProvider.jsx';
+import { useToast } from '@/shared/components/ToastProvider.jsx';
 import organizationApi from '@/services/organizationApi.js';
 import InvitesPanel from '@/features/settings/components/InvitesPanel.jsx';
 
@@ -111,6 +112,7 @@ function Toggle({ label, hint, defaultOn = false }) {
 function BusinessSection() {
   const { session } = useAuth();
   const orgId = session?.organizationId;
+  const toast = useToast();
 
   const [org, setOrg] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -118,8 +120,6 @@ function BusinessSection() {
 
   const [form, setForm] = useState({ name: '', industry: 'other', description: '' });
   const [saving, setSaving] = useState(false);
-  const [saveOk, setSaveOk] = useState(false);
-  const [saveError, setSaveError] = useState('');
 
   // Load org on mount.
   useEffect(() => {
@@ -153,8 +153,6 @@ function BusinessSection() {
 
   const update = (k) => (e) => {
     setForm((f) => ({ ...f, [k]: e.target.value }));
-    setSaveOk(false);
-    setSaveError('');
   };
 
   const isDirty =
@@ -167,8 +165,6 @@ function BusinessSection() {
     e.preventDefault();
     if (!orgId || !isDirty || saving) return;
     setSaving(true);
-    setSaveError('');
-    setSaveOk(false);
     const res = await organizationApi.update(orgId, {
       name: form.name.trim(),
       industry: form.industry,
@@ -176,11 +172,11 @@ function BusinessSection() {
     });
     setSaving(false);
     if (!res.ok) {
-      setSaveError(res.message || 'Failed to save changes.');
+      toast.error(res.message || 'Failed to save changes.');
       return;
     }
     setOrg(res.data);
-    setSaveOk(true);
+    toast.success('Business profile saved');
   };
 
   if (loading) {
@@ -245,17 +241,6 @@ function BusinessSection() {
             maxLength={1000}
           />
         </Field>
-
-        {saveError && (
-          <div className="flex items-start gap-2 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-200">
-            <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {saveError}
-          </div>
-        )}
-        {saveOk && (
-          <div className="flex items-start gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
-            <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0" /> Saved.
-          </div>
-        )}
 
         <div className="flex justify-end">
           <button
