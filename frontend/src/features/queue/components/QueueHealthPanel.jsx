@@ -4,31 +4,43 @@ import { Activity } from 'lucide-react';
 /**
  * QueueHealthPanel — premium right-side monitoring rail.
  *
- * Each row consumes a real engine-driven history series so the sparkline
- * waveform shifts as TICKs arrive. Status & label react to live queue
- * conditions: Healthy / Watching / Action.
+ * Counts (normal / delayed / critical) come from real waiting tickets
+ * classified by current age. Each row's sparkline is fed an independent
+ * real signal when available:
+ *   - normal  → throughput (served per bucket)
+ *   - delayed → demand     (joined per bucket)
+ *   - critical→ leakage    (abandoned per bucket)
+ * If the caller passes a single `history` array we fall back to the
+ * legacy derivation so the component stays usable in isolation.
  */
 export default function QueueHealthPanel({
-  normal = 14,
-  delayed = 3,
-  critical = 1,
-  history = [],
+  normal = 0,
+  delayed = 0,
+  critical = 0,
+  history = [],          // legacy single-series fallback
+  servedSeries = null,
+  joinedSeries = null,
+  abandonedSeries = null,
   queueLength = 0,
 }) {
-  const series = deriveSeries(history);
+  const series = (servedSeries || joinedSeries || abandonedSeries)
+    ? [
+        normaliseSeries(servedSeries    || history),
+        normaliseSeries(joinedSeries    || history),
+        normaliseSeries(abandonedSeries || history),
+      ]
+    : deriveSeries(history);
   const overall = overallHealth(normal, delayed, critical, queueLength);
 
   const rows = [
-    { value: normal,   title: 'Normal wait',   sub: 'Under 15m', color: '#2DD4BF', level: 'Healthy',  pts: series[0] },
-    { value: delayed,  title: 'Delayed wait',  sub: '15 – 30m',  color: '#FACC15', level: 'Watching', pts: series[1] },
-    { value: critical, title: 'Critical wait', sub: 'Over 30m',  color: '#FB923C', level: 'Action',   pts: series[2] },
+    { value: normal,   title: 'Normal wait',   sub: 'Under 15m', color: '#34D399', level: 'Healthy',  pts: series[0] },
+    { value: delayed,  title: 'Delayed wait',  sub: '15 – 30m',  color: '#FBBF24', level: 'Watching', pts: series[1] },
+    { value: critical, title: 'Critical wait', sub: 'Over 30m',  color: '#FB7185', level: 'Action',   pts: series[2] },
   ];
 
   return (
-    <section className="relative overflow-hidden rounded-3xl border border-white/[0.06] bg-white/[0.02] p-4 shadow-2xl backdrop-blur-xl">
-      <div className="pointer-events-none absolute -top-16 -right-16 h-40 w-40 rounded-full bg-violet-500/10 blur-3xl" />
-
-      <div className="relative flex items-center justify-between">
+    <section className="rounded-3xl border border-white/[0.06] bg-slate-950/40 p-4">
+      <div className="flex items-center justify-between">
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">
             Queue health
@@ -40,13 +52,13 @@ export default function QueueHealthPanel({
         </div>
       </div>
 
-      <div className="relative mt-3 space-y-1.5">
+      <div className="mt-3 space-y-1.5">
         {rows.map((r, i) => (
           <HealthRow key={r.title} {...r} index={i} />
         ))}
       </div>
 
-      <div className={`relative mt-3 flex items-center justify-between rounded-2xl border px-3 py-2 transition-colors ${overall.shellBorder} ${overall.shellBg}`}>
+      <div className={`mt-3 flex items-center justify-between rounded-2xl border px-3 py-2 transition-colors ${overall.shellBorder} ${overall.shellBg}`}>
         <div className="min-w-0">
           <p className="text-[9px] font-semibold uppercase tracking-widest text-slate-500">
             Overall
@@ -70,6 +82,17 @@ function deriveSeries(history) {
     base.map((v, i) => 0.40 + 0.05 * Math.max(0, v - 3) + 0.02 * Math.sin(i / 3 + 2)),
     base.map((v, i) => 0.35 + 0.07 * Math.max(0, v - 6) + 0.02 * Math.sin(i / 4 + 3)),
   ];
+}
+
+// Normalise an arbitrary integer series (e.g. tickets-per-hour) into the
+// 0…1-ish vertical band the sparkline renderer expects. We keep a tiny
+// floor so flat-zero stretches still draw a visible line rather than
+// collapsing to the panel edge.
+function normaliseSeries(history) {
+  const len = 26;
+  const base = padLeft(history, len);
+  const max = Math.max(1, ...base);
+  return base.map((v) => 0.3 + (v / max) * 0.6);
 }
 
 function padLeft(arr, n) {
@@ -169,20 +192,18 @@ function StreamingSparkline({ color, pts }) {
         d={d}
         fill="none"
         stroke={color}
-        strokeWidth="1.6"
+        strokeWidth="1.4"
         strokeLinecap="round"
         initial={false}
         animate={{ d }}
         transition={{ duration: 0.5, ease: 'easeOut' }}
-        style={{ filter: `drop-shadow(0 0 3px ${color})` }}
       />
       <motion.circle
-        cx={lastX} cy={lastY} r="2"
+        cx={lastX} cy={lastY} r="1.8"
         fill={color}
         initial={false}
         animate={{ cx: lastX, cy: lastY }}
         transition={{ duration: 0.5, ease: 'easeOut' }}
-        style={{ filter: `drop-shadow(0 0 4px ${color})` }}
       />
     </svg>
   );

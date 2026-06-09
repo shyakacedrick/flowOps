@@ -9,15 +9,14 @@ import InvitesPanel from '@/features/settings/components/InvitesPanel.jsx';
 /**
  * SettingsPage — "How do I configure FlowOps?"
  *
- * Sectioned settings: business, queue rules, notifications, roles, account, branches.
+ * Only sections that actually persist to the backend are listed here.
+ * Notifications, Queue rules, Account, and Branches are intentionally
+ * hidden until their respective backends land (Phase 11+). Better to ship
+ * 2 working sections than 6 sections where 4 of them silently drop edits.
  */
 const SECTIONS = [
   { key: 'business',     label: 'Business',      icon: Building2 },
-  { key: 'queue',        label: 'Queue rules',   icon: ListChecks },
-  { key: 'notifications',label: 'Notifications', icon: Bell },
-  { key: 'roles',        label: 'User roles',    icon: Users },
-  { key: 'account',      label: 'Account',       icon: ShieldCheck },
-  { key: 'branches',     label: 'Branches',      icon: MapPin },
+  { key: 'roles',        label: 'Team & invites',icon: Users },
 ];
 
 export default function SettingsPage() {
@@ -59,11 +58,7 @@ export default function SettingsPage() {
 
           <main className="space-y-5 lg:col-span-9">
             {section === 'business' && <BusinessSection />}
-            {section === 'queue'    && <QueueRulesSection />}
-            {section === 'notifications' && <NotificationsSection />}
             {section === 'roles'    && <RolesSection />}
-            {section === 'account'  && <AccountSection />}
-            {section === 'branches' && <BranchesSection />}
           </main>
         </div>
       </div>

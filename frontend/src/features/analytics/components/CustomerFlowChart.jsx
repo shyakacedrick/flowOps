@@ -1,77 +1,119 @@
+import { useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MoreHorizontal, TrendingUp, TrendingDown, Wifi } from 'lucide-react';
+import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { useCountUp } from '@/shared/hooks/useCountUp.js';
 import { useLastUpdated } from '@/shared/hooks/useLastUpdated.js';
 
 /**
- * CustomerFlowChart — premium streaming multi-layer area chart.
+ * CustomerFlowChart — clean multi-series line chart for customer flow.
  *
- * Behaves like Datadog / Grafana: each engine TICK appends a new data
- * point, the rest shift left, and the chart re-renders smoothly. Hero
- * metrics count up to the latest values; a "Updated Xs ago" tracker
- * resets every time the engine pushes a new event.
+ * Three real signals, plotted on ONE shared Y-axis so they're actually
+ * visually comparable:
+ *   • joined    (violet)   — demand        (new tickets per bucket)
+ *   • served    (emerald)  — throughput    (tickets resolved per bucket)
+ *   • abandoned (rose)     — leakage       (skipped + cancelled)
+ *
+ * The chart includes a real X-axis (time labels from the buckets), a
+ * real Y-axis (0 → max), a soft grid, a legend, and a hover crosshair
+ * with per-series readout.
  */
 export default function CustomerFlowChart({
-  totalServed = 242,
-  avgWait = 14,
-  activeCounters = 4,
-  history = [],
+  totalServed = 0,
+  avgWait = 0,
+  activeCounters = 0,
+  totalCounters = null,
+  joinedSeries = [],
+  servedSeries = [],
+  abandonedSeries = [],
+  bucketLabels = [],            // string[] same length as series, e.g. ['14:00', ...]
+  previous = null,              // { served, avgWaitMins, abandonRate }
+  range = '24h',
+  onRangeChange = null,
 }) {
-  const points = buildStreamingSeries(history);
   const served = useCountUp(totalServed, { duration: 900 });
   const wait   = useCountUp(avgWait,     { duration: 900 });
   const updated = useLastUpdated();
 
-  return (
-    <section className="group relative overflow-hidden rounded-3xl border border-white/[0.06] bg-white/[0.02] p-5 shadow-2xl backdrop-blur-xl transition-shadow hover:shadow-[0_30px_60px_-20px_rgba(59,130,246,0.35)] sm:p-6">
-      <div className="pointer-events-none absolute -top-32 -left-24 h-72 w-72 rounded-full bg-violet-500/15 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-24 right-0 h-64 w-64 rounded-full bg-cyan-500/10 blur-3xl" />
+  const servedDelta = formatCountDelta(totalServed, previous?.served);
+  const waitDelta   = formatMinutesDelta(avgWait, previous?.avgWaitMins);
+  const countersHint = totalCounters != null
+    ? `of ${totalCounters} desk${totalCounters === 1 ? '' : 's'}`
+    : 'live';
 
-      <div className="relative flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
-        <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
-            Customer Flow Intelligence
-          </p>
-          <h2 className="mt-1 text-base font-semibold text-white sm:text-lg">
-            Real-time customer traffic & service performance
+  const isEmpty = !joinedSeries.length && !servedSeries.length && !abandonedSeries.length;
+
+  return (
+    <section className="rounded-3xl border border-white/[0.06] bg-slate-950/40 p-5 sm:p-6">
+      {/* ── Header ──────────────────────────────────────────────────── */}
+      <header className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
+        <div className="min-w-0">
+          <h2 className="text-base font-semibold text-white sm:text-lg">
+            Customer flow
           </h2>
+          <p className="mt-0.5 text-xs text-slate-400">
+            Demand, throughput, and leakage over the selected window.
+          </p>
           <LiveBadge updated={updated} />
         </div>
-        <div className="flex shrink-0 items-center gap-1.5">
-          <RangePill label="24h" active />
-          <RangePill label="7d" />
-          <RangePill label="30d" />
-          <button className="grid h-8 w-8 place-items-center rounded-lg border border-white/10 text-slate-400 hover:bg-white/[0.04]">
-            <MoreHorizontal className="h-4 w-4" />
-          </button>
-        </div>
+        <RangeSwitcher value={range} onChange={onRangeChange} />
+      </header>
+
+      {/* ── Hero metric strip ───────────────────────────────────────── */}
+      <div className="mt-5 grid grid-cols-1 gap-4 border-y border-white/[0.05] py-4 sm:grid-cols-3">
+        <HeroMetric
+          label="Served"
+          value={served.toLocaleString()}
+          delta={servedDelta.label}
+          dir={servedDelta.dir}
+        />
+        <HeroMetric
+          label="Avg wait"
+          value={`${wait}m`}
+          delta={waitDelta.label}
+          dir={waitDelta.dir}
+          invert
+        />
+        <HeroMetric
+          label="Active counters"
+          value={activeCounters}
+          delta={countersHint}
+          neutral
+        />
       </div>
 
-      {/* Hero metric strip */}
-      <div className="relative mt-6 grid grid-cols-1 gap-5 sm:grid-cols-3 sm:gap-6">
-        <HeroMetric label="Customers served today" value={served.toLocaleString()} delta="+18 vs yesterday" dir="up"   tone="emerald" />
-        <HeroMetric label="Average wait time"      value={`${wait}m`}              delta="-2m faster"      dir="down" tone="cyan" />
-        <HeroMetric label="Active counters"        value={activeCounters}          delta="of 5 desks"                tone="violet" />
+      {/* ── Chart ───────────────────────────────────────────────────── */}
+      <div className="mt-5">
+        {isEmpty ? (
+          <EmptyChart />
+        ) : (
+          <CleanLineChart
+            joined={joinedSeries}
+            served={servedSeries}
+            abandoned={abandonedSeries}
+            labels={bucketLabels}
+          />
+        )}
       </div>
 
-      {/* Streaming chart */}
-      <div className="relative mt-6 h-56">
-        <GradientAreaChart points={points} />
-      </div>
+      {/* ── Legend ──────────────────────────────────────────────────── */}
+      <Legend />
     </section>
   );
 }
 
+// ──────────────────────────────────────────────────────────────────────
+//  Header bits
+// ──────────────────────────────────────────────────────────────────────
+
 function LiveBadge({ updated }) {
   return (
-    <div className="mt-2 flex items-center gap-2 text-[11px] font-medium text-slate-400">
+    <div className="mt-2 flex items-center gap-1.5 text-[11px] text-slate-400">
       <span className="relative flex h-1.5 w-1.5">
         <span className={`absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 ${updated.fresh ? 'animate-ping' : ''}`} />
         <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
       </span>
-      <span className="font-semibold uppercase tracking-widest text-emerald-300">Live</span>
-      <span className="text-slate-500">·</span>
-      <Wifi className="h-3 w-3 text-slate-500" />
+      <span className="font-medium text-emerald-300">Live</span>
+      <span className="text-slate-600">·</span>
       <AnimatePresence mode="wait">
         <motion.span
           key={updated.label}
@@ -79,47 +121,80 @@ function LiveBadge({ updated }) {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -2 }}
           transition={{ duration: 0.2 }}
+          className="text-slate-500"
         >
-          {updated.label}
+          updated {updated.label}
         </motion.span>
       </AnimatePresence>
     </div>
   );
 }
 
-function RangePill({ label, active = false }) {
+const RANGES = [
+  { value: '24h', label: '24h' },
+  { value: '7d',  label: '7d' },
+  { value: '30d', label: '30d' },
+];
+
+function RangeSwitcher({ value, onChange }) {
   return (
-    <button
-      className={`rounded-full px-3 py-1 text-[11px] font-semibold transition-colors ${
-        active ? 'bg-white/10 text-white ring-1 ring-white/15' : 'text-slate-400 hover:bg-white/[0.04] hover:text-slate-200'
-      }`}
-    >
-      {label}
-    </button>
+    <div className="inline-flex rounded-lg border border-white/10 bg-white/[0.02] p-0.5 text-[11px] font-medium">
+      {RANGES.map((r) => {
+        const active = r.value === value;
+        return (
+          <button
+            key={r.value}
+            type="button"
+            disabled={!onChange}
+            onClick={() => onChange?.(r.value)}
+            className={`rounded-md px-2.5 py-1 transition-colors ${
+              active
+                ? 'bg-white/[0.08] text-white'
+                : 'text-slate-400 hover:text-slate-200'
+            } ${!onChange ? 'cursor-default' : ''}`}
+          >
+            {r.label}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
-function HeroMetric({ label, value, delta, dir, tone = 'cyan' }) {
-  const tones = {
-    emerald: 'text-emerald-300 bg-emerald-400/10 ring-emerald-400/20',
-    cyan:    'text-cyan-300 bg-cyan-400/10 ring-cyan-400/20',
-    violet:  'text-violet-300 bg-violet-400/10 ring-violet-400/20',
-  }[tone];
-  const Icon = dir === 'down' ? TrendingDown : TrendingUp;
+function HeroMetric({ label, value, delta, dir = 'up', neutral = false, invert = false }) {
+  // For wait-time, lower is better → invert the tone mapping.
+  const effectiveDir = invert
+    ? (dir === 'down' ? 'up' : dir === 'up' ? 'down' : dir)
+    : dir;
+  const tone = neutral
+    ? 'text-slate-400'
+    : effectiveDir === 'up'
+      ? 'text-emerald-400'
+      : effectiveDir === 'down'
+        ? 'text-rose-400'
+        : 'text-slate-400';
+  const Icon = neutral
+    ? Minus
+    : dir === 'down'
+      ? TrendingDown
+      : dir === 'up'
+        ? TrendingUp
+        : Minus;
+
   return (
     <div>
-      <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400">{label}</p>
+      <p className="text-[11px] font-medium uppercase tracking-wider text-slate-500">{label}</p>
       <motion.p
         key={String(value)}
         initial={{ opacity: 0.6, y: 2 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.25 }}
-        className="mt-1.5 text-3xl font-bold tracking-tight text-white"
+        className="mt-1 text-2xl font-semibold tracking-tight text-white sm:text-3xl"
       >
         {value}
       </motion.p>
       {delta && (
-        <span className={`mt-2 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ${tones}`}>
+        <span className={`mt-1.5 inline-flex items-center gap-1 text-[11px] font-medium ${tone}`}>
           <Icon className="h-3 w-3" /> {delta}
         </span>
       )}
@@ -127,108 +202,338 @@ function HeroMetric({ label, value, delta, dir, tone = 'cyan' }) {
   );
 }
 
-// ---------------------------------------------------------------------------
-//  Streaming chart — every render re-projects the (already-rolling) engine
-//  history. The grid + glow stay fixed; only the points move.
-// ---------------------------------------------------------------------------
-
-function buildStreamingSeries(history) {
-  const len = 36;
-  const real = padLeft(history, len);
-  return [
-    real.map((v, i) => 8 + smooth(real, i, 1) * 6 + v * 2.5),
-    real.map((v, i) => 12 + smooth(real, i, 2) * 5 + v * 1.6),
-    real.map((v, i) => 18 + smooth(real, i, 3) * 4 + v * 0.9),
-  ];
+function Legend() {
+  return (
+    <div className="mt-4 flex flex-wrap items-center gap-4 text-[11px] text-slate-400">
+      <LegendItem color="#A78BFA" label="Joined" />
+      <LegendItem color="#34D399" label="Served" />
+      <LegendItem color="#FB7185" label="Abandoned" />
+    </div>
+  );
 }
 
-function padLeft(arr, n) {
-  const src = Array.isArray(arr) ? arr : [];
-  if (src.length >= n) return src.slice(-n);
-  return new Array(n - src.length).fill(0).concat(src);
+function LegendItem({ color, label }) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span className="inline-block h-2 w-2 rounded-full" style={{ background: color }} />
+      {label}
+    </span>
+  );
 }
 
-function smooth(arr, i, span) {
-  let sum = 0, count = 0;
-  for (let j = Math.max(0, i - span); j <= Math.min(arr.length - 1, i + span); j++) {
-    sum += arr[j]; count++;
-  }
-  return count ? sum / count : 0;
-}
+// ──────────────────────────────────────────────────────────────────────
+//  Chart
+// ──────────────────────────────────────────────────────────────────────
 
-function buildPath(series, W, H) {
-  if (!series.length) return '';
-  const max = Math.max(...series);
-  const min = Math.min(...series);
-  const range = max - min || 1;
-  const stepX = W / (series.length - 1);
-  return series.map((v, i) => {
-    const x = i * stepX;
-    const y = H - ((v - min) / range) * (H - 14) - 7;
-    if (i === 0) return `M ${x.toFixed(1)},${y.toFixed(1)}`;
-    const cx = ((i - 1) * stepX + x) / 2;
-    return `Q ${cx.toFixed(1)},${y.toFixed(1)} ${x.toFixed(1)},${y.toFixed(1)}`;
-  }).join(' ');
-}
+const SERIES_META = [
+  { key: 'joined',    color: '#A78BFA', label: 'Joined' },
+  { key: 'served',    color: '#34D399', label: 'Served' },
+  { key: 'abandoned', color: '#FB7185', label: 'Abandoned' },
+];
 
-function buildArea(series, W, H) {
-  const line = buildPath(series, W, H);
-  if (!line) return '';
-  return `${line} L ${W},${H} L 0,${H} Z`;
-}
+function CleanLineChart({ joined, served, abandoned, labels }) {
+  // Pad all three series to the same length so they share an X-axis.
+  const len = Math.max(joined.length, served.length, abandoned.length, 12);
+  const j = padLeft(joined,    len);
+  const s = padLeft(served,    len);
+  const a = padLeft(abandoned, len);
+  const lab = padLeft(labels,  len, '');
 
-function GradientAreaChart({ points }) {
+  // Shared Y-scale: max of all three series (so the lines are honestly
+  // comparable). +1 ceiling so a flat-zero stretch still has headroom.
+  const yMax = Math.max(1, ...j, ...s, ...a);
+  const niceMax = niceCeil(yMax);
+  const yTicks = buildYTicks(niceMax);
+
+  // SVG geometry.
+  const PAD_L = 32;
+  const PAD_R = 12;
+  const PAD_T = 8;
+  const PAD_B = 22;
   const W = 800;
   const H = 220;
-  const layers = [
-    { stroke: '#A78BFA', fill: 'url(#cfFillA)', glow: 'rgba(167,139,250,0.55)' },
-    { stroke: '#60A5FA', fill: 'url(#cfFillB)', glow: 'rgba(96,165,250,0.45)'  },
-    { stroke: '#22D3EE', fill: 'url(#cfFillC)', glow: 'rgba(34,211,238,0.4)'   },
-  ];
+  const innerW = W - PAD_L - PAD_R;
+  const innerH = H - PAD_T - PAD_B;
+
+  const xAt = (i) => PAD_L + (len === 1 ? innerW / 2 : (i * innerW) / (len - 1));
+  const yAt = (v) => PAD_T + innerH - (v / niceMax) * innerH;
+
+  const linePath = (series) =>
+    series
+      .map((v, i) => {
+        const x = xAt(i);
+        const y = yAt(v);
+        if (i === 0) return `M ${x.toFixed(1)} ${y.toFixed(1)}`;
+        const prevX = xAt(i - 1);
+        const cx = (prevX + x) / 2;
+        return `Q ${cx.toFixed(1)} ${y.toFixed(1)} ${x.toFixed(1)} ${y.toFixed(1)}`;
+      })
+      .join(' ');
+
+  const areaPath = (series) => {
+    const top = linePath(series);
+    if (!top) return '';
+    const lastX = xAt(series.length - 1).toFixed(1);
+    const firstX = xAt(0).toFixed(1);
+    const baseY = (PAD_T + innerH).toFixed(1);
+    return `${top} L ${lastX} ${baseY} L ${firstX} ${baseY} Z`;
+  };
+
+  // X-axis label cadence — pick ~6 evenly-spaced ticks.
+  const xLabelIndices = useMemo(() => pickIndices(len, 6), [len]);
+
+  // ── Hover crosshair ──────────────────────────────────────────────
+  const svgRef = useRef(null);
+  const [hoverIdx, setHoverIdx] = useState(null);
+
+  const handleMove = (e) => {
+    if (!svgRef.current) return;
+    const rect = svgRef.current.getBoundingClientRect();
+    const ratio = (e.clientX - rect.left) / rect.width;
+    const xPx = ratio * W;
+    if (xPx < PAD_L || xPx > W - PAD_R) {
+      setHoverIdx(null);
+      return;
+    }
+    const t = (xPx - PAD_L) / innerW;
+    const i = Math.round(t * (len - 1));
+    setHoverIdx(Math.max(0, Math.min(len - 1, i)));
+  };
+
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="h-full w-full">
-      <defs>
-        <linearGradient id="cfFillA" x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0%" stopColor="#A78BFA" stopOpacity="0.5" />
-          <stop offset="100%" stopColor="#A78BFA" stopOpacity="0" />
-        </linearGradient>
-        <linearGradient id="cfFillB" x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0%" stopColor="#60A5FA" stopOpacity="0.38" />
-          <stop offset="100%" stopColor="#60A5FA" stopOpacity="0" />
-        </linearGradient>
-        <linearGradient id="cfFillC" x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0%" stopColor="#22D3EE" stopOpacity="0.32" />
-          <stop offset="100%" stopColor="#22D3EE" stopOpacity="0" />
-        </linearGradient>
-      </defs>
+    <div className="relative">
+      <svg
+        ref={svgRef}
+        viewBox={`0 0 ${W} ${H}`}
+        preserveAspectRatio="none"
+        className="h-56 w-full"
+        onMouseMove={handleMove}
+        onMouseLeave={() => setHoverIdx(null)}
+      >
+        <defs>
+          {SERIES_META.map((m) => (
+            <linearGradient key={m.key} id={`cf-${m.key}`} x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0%"   stopColor={m.color} stopOpacity="0.18" />
+              <stop offset="100%" stopColor={m.color} stopOpacity="0" />
+            </linearGradient>
+          ))}
+        </defs>
 
-      {[0.2, 0.4, 0.6, 0.8].map((p) => (
-        <line key={p} x1="0" x2={W} y1={H * p} y2={H * p}
-              stroke="rgba(255,255,255,0.04)" strokeDasharray="3 5" />
-      ))}
+        {/* Y-axis grid + labels */}
+        {yTicks.map((t) => {
+          const y = yAt(t);
+          return (
+            <g key={t}>
+              <line
+                x1={PAD_L} x2={W - PAD_R}
+                y1={y} y2={y}
+                stroke="rgba(255,255,255,0.06)"
+                strokeDasharray="2 4"
+              />
+              <text
+                x={PAD_L - 6} y={y + 3}
+                textAnchor="end"
+                fontSize="10"
+                fill="rgba(148,163,184,0.7)"
+                fontFamily="ui-sans-serif, system-ui"
+              >
+                {t}
+              </text>
+            </g>
+          );
+        })}
 
-      {layers.map((layer, idx) => (
-        <g key={idx}>
-          <motion.path
-            d={buildArea(points[idx], W, H)}
-            fill={layer.fill}
-            initial={false}
-            animate={{ d: buildArea(points[idx], W, H) }}
-            transition={{ duration: 0.6, ease: 'easeOut' }}
-          />
-          <motion.path
-            d={buildPath(points[idx], W, H)}
-            fill="none"
-            stroke={layer.stroke}
-            strokeWidth="2.2"
-            strokeLinecap="round"
-            initial={false}
-            animate={{ d: buildPath(points[idx], W, H) }}
-            transition={{ duration: 0.6, ease: 'easeOut' }}
-            style={{ filter: `drop-shadow(0 0 8px ${layer.glow})` }}
-          />
-        </g>
-      ))}
-    </svg>
+        {/* X-axis baseline */}
+        <line
+          x1={PAD_L} x2={W - PAD_R}
+          y1={PAD_T + innerH} y2={PAD_T + innerH}
+          stroke="rgba(255,255,255,0.08)"
+        />
+
+        {/* X-axis labels */}
+        {xLabelIndices.map((i) => (
+          <text
+            key={i}
+            x={xAt(i)} y={H - 6}
+            textAnchor="middle"
+            fontSize="10"
+            fill="rgba(148,163,184,0.7)"
+            fontFamily="ui-sans-serif, system-ui"
+          >
+            {lab[i] || ''}
+          </text>
+        ))}
+
+        {/* Series — areas first, then lines, so lines stay crisp on top */}
+        {SERIES_META.map((m, idx) => {
+          const data = [j, s, a][idx];
+          return (
+            <motion.path
+              key={`area-${m.key}`}
+              d={areaPath(data)}
+              fill={`url(#cf-${m.key})`}
+              initial={false}
+              animate={{ d: areaPath(data) }}
+              transition={{ duration: 0.5, ease: 'easeOut' }}
+            />
+          );
+        })}
+        {SERIES_META.map((m, idx) => {
+          const data = [j, s, a][idx];
+          return (
+            <motion.path
+              key={`line-${m.key}`}
+              d={linePath(data)}
+              fill="none"
+              stroke={m.color}
+              strokeWidth="1.75"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              initial={false}
+              animate={{ d: linePath(data) }}
+              transition={{ duration: 0.5, ease: 'easeOut' }}
+            />
+          );
+        })}
+
+        {/* Hover crosshair + per-series dots */}
+        {hoverIdx != null && (
+          <g pointerEvents="none">
+            <line
+              x1={xAt(hoverIdx)} x2={xAt(hoverIdx)}
+              y1={PAD_T} y2={PAD_T + innerH}
+              stroke="rgba(255,255,255,0.15)"
+              strokeDasharray="3 3"
+            />
+            {SERIES_META.map((m, idx) => {
+              const v = [j, s, a][idx][hoverIdx];
+              return (
+                <circle
+                  key={`dot-${m.key}`}
+                  cx={xAt(hoverIdx)} cy={yAt(v)}
+                  r="3.5"
+                  fill="#0F172A"
+                  stroke={m.color}
+                  strokeWidth="2"
+                />
+              );
+            })}
+          </g>
+        )}
+      </svg>
+
+      {/* Tooltip */}
+      {hoverIdx != null && (
+        <Tooltip
+          label={lab[hoverIdx] || ''}
+          values={{
+            joined:    j[hoverIdx],
+            served:    s[hoverIdx],
+            abandoned: a[hoverIdx],
+          }}
+          x={(xAt(hoverIdx) / W) * 100}
+        />
+      )}
+    </div>
   );
+}
+
+function Tooltip({ label, values, x }) {
+  // Position tooltip near the crosshair; clamp so it doesn't fall off the
+  // edges. `x` is a percentage of chart width.
+  const clampedX = Math.max(8, Math.min(92, x));
+  const onRight = clampedX > 70;
+  return (
+    <div
+      className="pointer-events-none absolute top-2 z-10 min-w-[140px] rounded-lg border border-white/10 bg-slate-900/95 px-3 py-2 text-xs shadow-xl backdrop-blur"
+      style={{
+        left:  onRight ? undefined : `calc(${clampedX}% + 10px)`,
+        right: onRight ? `calc(${100 - clampedX}% + 10px)` : undefined,
+      }}
+    >
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+        {label || '—'}
+      </p>
+      <ul className="mt-1.5 space-y-1">
+        {SERIES_META.map((m) => (
+          <li key={m.key} className="flex items-center justify-between gap-3">
+            <span className="flex items-center gap-1.5 text-slate-300">
+              <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: m.color }} />
+              {m.label}
+            </span>
+            <span className="font-mono text-white">{values[m.key] ?? 0}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function EmptyChart() {
+  return (
+    <div className="flex h-56 items-center justify-center rounded-xl border border-dashed border-white/10 bg-white/[0.01] text-xs text-slate-500">
+      Waiting for the first tickets to come in…
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────
+//  Math helpers
+// ──────────────────────────────────────────────────────────────────────
+
+function padLeft(arr, n, fill = 0) {
+  const src = Array.isArray(arr) ? arr : [];
+  if (src.length >= n) return src.slice(-n);
+  return new Array(n - src.length).fill(fill).concat(src);
+}
+
+// Rounds up to a "nice" axis ceiling — 1, 2, 5, 10, 20, 50, 100, ...
+function niceCeil(n) {
+  if (n <= 1) return 1;
+  const exp = Math.floor(Math.log10(n));
+  const base = Math.pow(10, exp);
+  const norm = n / base;
+  let nice;
+  if      (norm <= 1) nice = 1;
+  else if (norm <= 2) nice = 2;
+  else if (norm <= 5) nice = 5;
+  else                nice = 10;
+  return nice * base;
+}
+
+function buildYTicks(max) {
+  if (max <= 4) {
+    const out = [];
+    for (let i = 0; i <= max; i += 1) out.push(i);
+    return out;
+  }
+  return [0, Math.round(max / 4), Math.round(max / 2), Math.round((max * 3) / 4), max];
+}
+
+function pickIndices(len, count) {
+  if (len <= count) return Array.from({ length: len }, (_, i) => i);
+  const step = (len - 1) / (count - 1);
+  const out = [];
+  for (let i = 0; i < count; i += 1) out.push(Math.round(i * step));
+  return out;
+}
+
+// ──────────────────────────────────────────────────────────────────────
+//  Delta formatting
+// ──────────────────────────────────────────────────────────────────────
+
+function formatCountDelta(current, prev) {
+  if (prev == null) return { label: '', dir: 'up' };
+  const diff = (current ?? 0) - prev;
+  if (diff === 0) return { label: 'flat vs prior', dir: 'flat' };
+  const sign = diff > 0 ? '+' : '−';
+  return { label: `${sign}${Math.abs(diff)} vs prior`, dir: diff > 0 ? 'up' : 'down' };
+}
+
+function formatMinutesDelta(current, prev) {
+  if (prev == null || current == null) return { label: '', dir: 'flat' };
+  const diff = current - prev;
+  if (Math.abs(diff) < 0.5) return { label: 'on par with prior', dir: 'flat' };
+  if (diff < 0) return { label: `${Math.abs(diff).toFixed(1)}m faster`, dir: 'down' };
+  return { label: `${diff.toFixed(1)}m slower`, dir: 'up' };
 }

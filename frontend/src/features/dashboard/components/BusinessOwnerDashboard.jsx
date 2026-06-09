@@ -1,32 +1,34 @@
-import { useCallback, useMemo, useState } from 'react';
-import HybridDashboardShell from '@/features/dashboard/components/HybridDashboardShell.jsx';
+// ============================================================================
+//  BusinessOwnerDashboard — owner workspace (Phase 10: fully real-data)
+// ----------------------------------------------------------------------------
+//  Every metric on this page reads from the backend now. The simulation
+//  engine is no longer consulted here — owners need a credible picture of
+//  their actual operations, not a procedurally-generated one.
+//
+//  Data sources:
+//    GET /api/analytics/summary?range=…   → headline numbers + throughput
+//    GET /api/queues                       → queue health derivation
+//    GET /api/tickets?queueId=…           → next-in-line for the busiest queue
+//    GET /api/activities                  → live activity feed
+// ============================================================================
+
+import { useMemo, useState } from 'react';import HybridDashboardShell from '@/features/dashboard/components/HybridDashboardShell.jsx';
 import CustomerFlowChart from '@/features/analytics/components/CustomerFlowChart.jsx';
 import OperationalQuickGrid from '@/features/operations/components/OperationalQuickGrid.jsx';
 import QueueHealthPanel from '@/features/queue/components/QueueHealthPanel.jsx';
-import LiveActivityFeed from '@/features/customer-feed/components/LiveActivityFeedHybrid.jsx';
 import SmartInsightsPanel from '@/features/smart-insights/components/SmartInsightsPanel.jsx';
 import NextInLineTimeline from '@/features/queue/components/NextInLineTimeline.jsx';
 import SystemStatusCenter from '@/features/operations/components/SystemStatusCenter.jsx';
 import BootSequence from '@/features/operations/components/BootSequence.jsx';
 import QueueManagerCard from '@/features/queue/components/QueueManagerCard.jsx';
 import LiveTicketsCard from '@/features/queue/components/LiveTicketsCard.jsx';
-import { useSimulationSlice, useSimulationDispatch } from '@/engine/SimulationProvider.jsx';
-import {
-  EVENT_TYPES,
-  selectAverageWait,
-  selectEfficiency,
-} from '@/engine/flowOpsEngine.js';
+import BackendActivityTimeline from '@/features/customer-feed/components/BackendActivityTimeline.jsx';
 
-/**
- * BusinessOwnerDashboard — FlowOps premium enterprise operations dashboard.
- *
- * Live-system wiring:
- *  - FlowOps engine drives every metric, sparkline, chart, and activity row
- *  - Boot sequence overlay on first mount (once per browser session)
- *  - Live activity feed, rotating insights, drifting subsystem health
- *  - Queue health states + next-in-line items derive from real queue depth
- */
-const NEXT_TONES = ['sky', 'violet', 'emerald', 'amber', 'rose'];
+import useAnalyticsSummary from '@/features/analytics/hooks/useAnalyticsSummary.js';
+import { useQueues } from '@/features/queue/hooks/useQueues.js';
+import useTickets from '@/features/queue/hooks/useTickets.js';
+
+const NEXT_TONES = ['emerald', 'violet', 'slate', 'amber', 'rose'];
 
 export default function BusinessOwnerDashboard() {
   const [booted, setBooted] = useState(() => {
@@ -34,67 +36,74 @@ export default function BusinessOwnerDashboard() {
     return window.sessionStorage.getItem('flowops:booted') === '1';
   });
 
-  // Subscribe only to the slices this component actually reads, so it does
-  // NOT re-render on every simulation tick.
-  const queue    = useSimulationSlice((s) => s.queue);
-  const history  = useSimulationSlice((s) => s.history);
-  const analytics = useSimulationSlice((s) => s.analytics);
-  const business  = useSimulationSlice((s) => s.business);
-  const dispatch = useSimulationDispatch();
+  // Range for the customer-flow chart (24h / 7d / 30d). Drives the
+  // analytics fetch and the X-axis labels alike.
+  const [chartRange, setChartRange] = useState('24h');
 
-  const efficiency = selectEfficiency({ queue, analytics, business });
-  const avgWait    = selectAverageWait({ queue, analytics, business });
+  // ── Real data sources ────────────────────────────────────────────────
+  const { summary, status: analyticsStatus } = useAnalyticsSummary({ range: chartRange });
+  const { queues } = useQueues();
 
-  const totalServed    = analytics.totalServed || 242;
-  const avgWaitMins    = Math.max(1, Math.round(avgWait)) || 14;
-  const activeCounters = 4;
+  // For "Next in line" we focus on the busiest queue from analytics, or
+  // fall back to the first active queue if analytics hasn't named one yet.
+  const focusQueueId =
+    summary?.busiestQueueId
+    || queues.find((q) => q.status === 'active')?._id
+    || queues[0]?._id
+    || null;
+  const { tickets: focusTickets } = useTickets(focusQueueId, { pollMs: 5000 });
 
-  // Use explicit null-check so a genuine queue length of 0 is not masked by
-  // the fallback (fixes the falsy-zero || bug).
-  const waiting          = queue.length > 0 ? queue.length : 18;
-  const serving          = Math.min(4, Math.max(0, queue.filter((c) => c.status === 'serving').length > 0 ? queue.filter((c) => c.status === 'serving').length : 4));
-  const staffActive      = 6;
-  const staffOnBreak     = 1;
-  const efficiencyDelta  = Math.max(0, Math.round(efficiency - 60)) > 0 ? Math.max(0, Math.round(efficiency - 60)) : 12;
+  // ── Derived numbers (with safe fallbacks while loading) ──────────────
+  const totals     = summary?.totals || {};
+  const totalServed     = totals.served ?? 0;
+  const avgWaitMins     = summary?.avgWaitMins ?? 0;
+  const activeCounters  = queues.filter((q) => q.status === 'active').length;
+  const totalCounters   = queues.length;
+  const waiting         = totals.waitingNow ?? 0;
+  const serving         = totals.servingNow ?? 0;
 
-  // Queue health buckets derived from waiting depth.
-  const normal   = Math.max(0, waiting - 4) > 0 ? Math.max(0, waiting - 4) : 14;
-  const delayed  = Math.min(waiting, 3);
-  const critical = waiting > 20 ? 2 : 1;
+  // Three real time-series straight from analytics. Each carries a
+  // distinct operational signal so the chart layers actually MEAN
+  // something instead of being three offsets of the same number.
+  const { joinedSeries, servedSeries, abandonedSeries, bucketLabels } = useMemo(() => {
+    const buckets = summary?.throughputByHour || [];
+    return {
+      joinedSeries:    buckets.map((b) => b.joined    ?? 0),
+      servedSeries:    buckets.map((b) => b.served    ?? 0),
+      abandonedSeries: buckets.map((b) => b.abandoned ?? 0),
+      bucketLabels:    buckets.map((b) => b.label     ?? ''),
+    };
+  }, [summary]);
 
-  // Derive "next in line" items from real queue state (fallbacks if empty).
+  // Real wait-time classification: counts of CURRENTLY waiting tickets
+  // bucketed by their current age (the backend computes this from
+  // joinedAt against `now`). No more fake arithmetic on a single total.
+  const { normal, delayed, critical } = summary?.waitBuckets || {
+    normal: 0, delayed: 0, critical: 0,
+  };
+
+  // "Next in line" items from the busiest queue's waiting tickets.
   const nextItems = useMemo(() => {
-    const live = queue.slice(0, 5).map((c, i) => {
-      const eta = Math.max(1, Math.round((i + 1) * business.averageServiceTime));
-      const status = i === 0 ? 'Ready' : i === 1 ? 'On deck' : i === 4 ? 'Reserved' : 'Queued';
-      return {
-        ticket: ticketCode(c.id, i),
-        desk:   i === 3 ? 'Specialist' : `Desk ${(i % 4) + 1}`,
-        eta:    `${eta}m`,
-        tone:   NEXT_TONES[i % NEXT_TONES.length],
-        status,
-      };
-    });
-    if (live.length >= 3) return live;
-    // Top up with synthesized fallbacks so the panel always feels populated.
-    const fallback = [
-      { ticket: 'A-104', desk: 'Desk 2', eta: '4m',  tone: 'sky',     status: 'Ready'    },
-      { ticket: 'B-211', desk: 'Desk 1', eta: '9m',  tone: 'violet',  status: 'On deck'  },
-      { ticket: 'A-308', desk: 'Desk 3', eta: '15m', tone: 'emerald', status: 'Queued'   },
-      { ticket: 'C-038', desk: 'Specialist', eta: '22m', tone: 'amber',  status: 'Queued'   },
-      { ticket: 'A-106', desk: 'Desk 4', eta: '30m', tone: 'rose',    status: 'Reserved' },
-    ];
-    return [...live, ...fallback].slice(0, 5);
-  }, [queue, business.averageServiceTime]);
+    const waitingList = (focusTickets || [])
+      .filter((t) => t.status === 'waiting')
+      .slice()
+      .sort((a, b) => new Date(a.joinedAt) - new Date(b.joinedAt))
+      .slice(0, 5);
 
-  const handleQuickAdd = useCallback((key) => {
-    if (key === 'queue') dispatch({ type: EVENT_TYPES.NEW_CUSTOMER });
-  }, [dispatch]);
-  const handleCallNext = useCallback(() => dispatch({ type: EVENT_TYPES.SERVE_CUSTOMER }), [dispatch]);
+    if (!waitingList.length) return [];
+    const avgSvcMins = Math.max(2, Math.round(summary?.avgServiceMins ?? 6));
+    return waitingList.map((t, i) => ({
+      ticket: t.ticketNumber || `#${i + 1}`,
+      desk: t.customerName || '—',
+      eta:  `${avgSvcMins * (i + 1)}m`,
+      tone: NEXT_TONES[i % NEXT_TONES.length],
+      status: i === 0 ? 'Ready' : i === 1 ? 'On deck' : 'Queued',
+    }));
+  }, [focusTickets, summary]);
 
   const handleBootDone = () => {
     setBooted(true);
-    try { window.sessionStorage.setItem('flowops:booted', '1'); } catch (_) { /* noop */ }
+    try { window.sessionStorage.setItem('flowops:booted', '1'); } catch { /* noop */ }
   };
 
   return (
@@ -104,46 +113,73 @@ export default function BusinessOwnerDashboard() {
       <HybridDashboardShell
         darkSlot={
           <div className="grid gap-5 xl:grid-cols-12">
+            {/* ── Main column: monitor first, manage last ───────────── */}
             <div className="space-y-5 xl:col-span-8">
-              <QueueManagerCard />
-              <LiveTicketsCard />
+              {/* 1. Headline analytics — the reason this page exists */}
               <CustomerFlowChart
                 totalServed={totalServed}
                 avgWait={avgWaitMins}
                 activeCounters={activeCounters}
-                history={history}
+                totalCounters={totalCounters}
+                joinedSeries={joinedSeries}
+                servedSeries={servedSeries}
+                abandonedSeries={abandonedSeries}
+                bucketLabels={bucketLabels}
+                previous={summary?.previous || null}
+                range={chartRange}
+                onRangeChange={setChartRange}
               />
+
+              {/* 2. Secondary KPI tiles — honest, complementary to chart */}
               <OperationalQuickGrid
                 waiting={waiting}
                 serving={serving}
-                staffActive={staffActive}
-                staffOnBreak={staffOnBreak}
-                efficiencyDelta={efficiencyDelta}
-                onAction={handleQuickAdd}
-                onCallNext={handleCallNext}
+                abandonRate={summary?.abandonRate ?? 0}
+                prevAbandonRate={summary?.previous?.abandonRate ?? null}
+                peakHour={summary?.peakHour ?? null}
+                totalCounters={totalCounters}
+                avgWaitMins={avgWaitMins}
               />
+
+              {/* 3. Live operational detail (read-mostly) */}
+              <LiveTicketsCard />
+
+              {/* 4. Management / CRUD — lowest priority on an overview page */}
+              <QueueManagerCard />
             </div>
 
+            {/* ── Right rail: glance widgets clustered together ─────── */}
             <div className="space-y-5 xl:col-span-4">
               <QueueHealthPanel
                 normal={normal}
                 delayed={delayed}
                 critical={critical}
-                history={history}
-                queueLength={queue.length}
+                servedSeries={servedSeries}
+                joinedSeries={joinedSeries}
+                abandonedSeries={abandonedSeries}
+                queueLength={waiting}
               />
+              {nextItems.length > 0 ? (
+                <NextInLineTimeline items={nextItems} />
+              ) : (
+                <EmptyNextInLine />
+              )}
               <SystemStatusCenter />
+              {analyticsStatus === 'error' && (
+                <div className="rounded-2xl border border-rose-400/30 bg-rose-400/10 px-3 py-2 text-xs text-rose-200">
+                  Analytics service is unreachable. Numbers above may be stale.
+                </div>
+              )}
             </div>
           </div>
         }
         lightSlot={
           <div className="grid gap-5 xl:grid-cols-12">
             <div className="xl:col-span-8">
-              <LiveActivityFeed />
+              <BackendActivityTimeline />
             </div>
             <div className="space-y-5 xl:col-span-4">
               <SmartInsightsPanel />
-              <NextInLineTimeline items={nextItems} />
             </div>
           </div>
         }
@@ -152,14 +188,14 @@ export default function BusinessOwnerDashboard() {
   );
 }
 
-function ticketCode(id, i) {
-  const prefix = ['A', 'B', 'A', 'C', 'A'][i % 5];
-  const n = 100 + Math.abs(hashCode(String(id ?? i))) % 900;
-  return `${prefix}-${n}`;
-}
-
-function hashCode(s) {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
-  return h;
+function EmptyNextInLine() {
+  return (
+    <section className="rounded-3xl border border-white/[0.06] bg-slate-950/40 p-5">
+      <h3 className="text-sm font-semibold text-white">Upcoming queue sequence</h3>
+      <p className="mt-0.5 text-xs text-slate-400">Predicted hand-offs across counters</p>
+      <p className="mt-5 text-center text-xs text-slate-500">
+        No customers currently waiting. Share your queue's QR code to start the flow.
+      </p>
+    </section>
+  );
 }

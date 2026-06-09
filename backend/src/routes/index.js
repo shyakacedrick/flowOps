@@ -5,6 +5,7 @@ import queueRoutes from './queueRoutes.js';
 import ticketRoutes from './ticketRoutes.js';
 import activityRoutes from './activityRoutes.js';
 import inviteRoutes from './inviteRoutes.js';
+import analyticsRoutes from './analyticsRoutes.js';
 import publicRoutes from './publicRoutes.js';
 
 const router = Router();
@@ -26,6 +27,7 @@ router.use('/queues', queueRoutes);
 router.use('/tickets', ticketRoutes);
 router.use('/activities', activityRoutes);
 router.use('/invites', inviteRoutes);
+router.use('/analytics', analyticsRoutes);
 router.use('/public', publicRoutes);
 
 export default router;
