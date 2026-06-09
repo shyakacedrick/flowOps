@@ -2,7 +2,8 @@ import jwt from 'jsonwebtoken';
 import asyncHandler from '../utils/asyncHandler.js';
 import ApiError from '../utils/ApiError.js';
 import { verifyToken } from '../utils/token.js';
-import User from '../models/User.js';
+import User, { USER_ROLES } from '../models/User.js';
+import Organization from '../models/Organization.js';
 import RevokedToken from '../models/RevokedToken.js';
 
 /**
@@ -41,6 +42,22 @@ export const authenticateUser = asyncHandler(async (req, _res, next) => {
   const user = await User.findById(decoded.sub);
   if (!user) {
     throw ApiError.unauthorized('User no longer exists');
+  }
+
+  // Per-user suspension. Platform admins cannot be suspended (enforced at
+  // write-time in userController), so this branch only fires for owners/staff.
+  if (user.suspendedAt) {
+    throw ApiError.forbidden('Your account has been suspended');
+  }
+
+  // Per-org suspension. Skipped for platform admins so they can still operate
+  // the admin console even when investigating a suspended org. Cheap extra
+  // lookup; only projects the fields we need.
+  if (user.role !== USER_ROLES.PLATFORM_ADMIN && user.organizationId) {
+    const org = await Organization.findById(user.organizationId, 'suspendedAt name').lean();
+    if (org?.suspendedAt) {
+      throw ApiError.forbidden('Your organization has been suspended');
+    }
   }
 
   req.user = user;

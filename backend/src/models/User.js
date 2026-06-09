@@ -54,6 +54,13 @@ const userSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    // Per-user suspension. Set by platform admin via PATCH /api/users/:id.
+    // While set, the auth middleware rejects all requests from this user.
+    // Platform admins cannot be suspended (enforced in userController).
+    suspendedAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,

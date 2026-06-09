@@ -180,6 +180,13 @@ export const login = asyncHandler(async (req, res) => {
   const valid = await user.comparePassword(password);
   if (!valid) throw ApiError.unauthorized('Invalid credentials');
 
+  // Block sign-in for suspended accounts BEFORE issuing a token. We use the
+  // same generic error as bad credentials to avoid leaking account state to
+  // unauthenticated callers; the email recipient will already know.
+  if (user.suspendedAt) {
+    throw ApiError.forbidden('Your account has been suspended');
+  }
+
   await logUserLogin(user);
 
   return success(res, await buildAuthPayload(user, req, res));

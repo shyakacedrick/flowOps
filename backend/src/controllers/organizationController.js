@@ -87,9 +87,17 @@ export const updateOrganization = asyncHandler(async (req, res) => {
     throw ApiError.forbidden('You do not have permission to update this organization');
   }
 
+  // Owners can edit identity & description; platform admins can additionally
+  // change plan and toggle suspension. We translate `suspended: true|false`
+  // into the timestamp field so the API surface stays boolean-friendly.
   const updatable = ['name', 'industry', 'description'];
+  if (isAdmin) updatable.push('plan', 'suspensionReason');
   for (const key of updatable) {
     if (key in (req.body || {})) org[key] = req.body[key];
+  }
+  if (isAdmin && 'suspended' in (req.body || {})) {
+    org.suspendedAt = req.body.suspended ? (org.suspendedAt || new Date()) : null;
+    if (!req.body.suspended) org.suspensionReason = '';
   }
   await org.save();
 

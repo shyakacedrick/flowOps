@@ -54,6 +54,19 @@ const organizationSchema = new mongoose.Schema(
       default: null,
       index: true,
     },
+    // Suspension freezes an entire org. While suspended, every
+    // org-scoped request returns 403 (see middleware/auth.js).
+    // Set/cleared by platform admin via PATCH /api/organizations/:id.
+    suspendedAt: {
+      type: Date,
+      default: null,
+    },
+    suspensionReason: {
+      type: String,
+      trim: true,
+      maxlength: [500, 'Suspension reason must be at most 500 characters'],
+      default: '',
+    },
   },
   {
     timestamps: true,
