@@ -10,8 +10,9 @@
 //  comes back from queueApi.list().
 // ============================================================================
 
-import { useState } from 'react';
-import { Loader2, Plus, Pause, Play, Trash2, RefreshCw, AlertCircle } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Loader2, Plus, Pause, Play, Trash2, RefreshCw, AlertCircle, QrCode, X, Copy, Check, ExternalLink } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 import { useQueues } from '@/features/queue/hooks/useQueues.js';
 import { useConfirm } from '@/shared/components/ConfirmProvider.jsx';
 import queueApi from '@/services/queueApi.js';
@@ -43,6 +44,7 @@ export default function QueueManagerCard({
   const [creating, setCreating] = useState(false);
   const [busyIds, setBusyIds] = useState(() => new Set());
   const [formError, setFormError] = useState('');
+  const [shareQueue, setShareQueue] = useState(null);
   const confirm = useConfirm();
 
   const isBusy = (id) => busyIds.has(id);
@@ -251,6 +253,16 @@ export default function QueueManagerCard({
                   <>
                     <button
                       type="button"
+                      onClick={() => setShareQueue(q)}
+                      disabled={q._optimistic}
+                      title="Share join link"
+                      className="grid h-7 w-7 place-items-center rounded-lg border border-white/10 bg-white/[0.04] text-slate-300 transition hover:border-primary/40 hover:text-primary disabled:opacity-40"
+                    >
+                      <QrCode className="h-3.5 w-3.5" />
+                    </button>
+
+                    <button
+                      type="button"
                       onClick={() => onToggleStatus(q)}
                       disabled={isBusy(q._id) || q.status === 'closed' || q._optimistic}
                       title={q.status === 'active' ? 'Pause queue' : 'Resume queue'}
@@ -281,6 +293,10 @@ export default function QueueManagerCard({
           </ul>
         )}
       </div>
+
+      {shareQueue && (
+        <QrShareModal queue={shareQueue} onClose={() => setShareQueue(null)} />
+      )}
     </section>
   );
 }
@@ -308,5 +324,92 @@ function StatusBadge({ status, count, error }) {
       <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
       Live · {count} {count === 1 ? 'queue' : 'queues'}
     </span>
+  );
+}
+
+/* ----------------------------------------------------------------- */
+/* QR share modal — lets the owner display the public join URL.       */
+/* ----------------------------------------------------------------- */
+function QrShareModal({ queue, onClose }) {
+  const publicUrl = `${window.location.origin}/q/${queue._id}`;
+  const [copied, setCopied] = useState(false);
+
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(publicUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      /* clipboard blocked — ignore */
+    }
+  };
+
+  // Close on Escape.
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-sm rounded-2xl border border-white/[0.08] bg-bg p-5 shadow-2xl"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-primary/80">
+              Share this queue
+            </p>
+            <h3 className="mt-1 text-sm font-semibold text-white">{queue.name}</h3>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="grid h-7 w-7 place-items-center rounded-lg border border-white/10 bg-white/[0.04] text-slate-300 hover:border-white/20 hover:text-white"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+
+        <div className="mt-4 grid place-items-center rounded-xl border border-white/[0.06] bg-white p-4">
+          <QRCodeSVG value={publicUrl} size={196} includeMargin={false} level="M" />
+        </div>
+
+        <p className="mt-3 text-center text-[11px] text-slate-400">
+          Customers scan this code to take a ticket. No account needed.
+        </p>
+
+        <div className="mt-4 flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2">
+          <span className="min-w-0 flex-1 truncate text-[11px] text-slate-300">{publicUrl}</span>
+          <button
+            type="button"
+            onClick={copyLink}
+            className="inline-flex items-center gap-1 rounded-md border border-white/10 bg-white/[0.04] px-2 py-1 text-[11px] text-slate-200 hover:border-primary/40 hover:text-primary"
+          >
+            {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+            {copied ? 'Copied' : 'Copy'}
+          </button>
+          <a
+            href={publicUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 rounded-md border border-white/10 bg-white/[0.04] px-2 py-1 text-[11px] text-slate-200 hover:border-primary/40 hover:text-primary"
+          >
+            <ExternalLink className="h-3 w-3" />
+            Open
+          </a>
+        </div>
+      </div>
+    </div>
   );
 }

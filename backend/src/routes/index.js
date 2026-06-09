@@ -4,6 +4,7 @@ import organizationRoutes from './organizationRoutes.js';
 import queueRoutes from './queueRoutes.js';
 import ticketRoutes from './ticketRoutes.js';
 import activityRoutes from './activityRoutes.js';
+import publicRoutes from './publicRoutes.js';
 
 const router = Router();
 
@@ -23,5 +24,6 @@ router.use('/organizations', organizationRoutes);
 router.use('/queues', queueRoutes);
 router.use('/tickets', ticketRoutes);
 router.use('/activities', activityRoutes);
+router.use('/public', publicRoutes);
 
 export default router;
