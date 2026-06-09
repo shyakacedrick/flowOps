@@ -12,6 +12,10 @@ import {
   joinQueuePublic,
   getPublicTicket,
 } from '../controllers/publicController.js';
+import {
+  getPublicInvite,
+  acceptPublicInvite,
+} from '../controllers/inviteController.js';
 
 const router = Router();
 
@@ -36,5 +40,18 @@ const readLimiter = rateLimit({
 router.get('/queues/:queueId',          readLimiter, getPublicQueue);
 router.post('/queues/:queueId/tickets', joinLimiter, joinQueuePublic);
 router.get('/tickets/:ticketId',        readLimiter, getPublicTicket);
+
+// Invite acceptance flow. Lookup is read-only and rate-limited mildly;
+// accept is tighter to slow brute-force guessing of tokens.
+const acceptLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Too many requests. Please wait a minute.' },
+});
+
+router.get('/invites/:token',         readLimiter,   getPublicInvite);
+router.post('/invites/:token/accept', acceptLimiter, acceptPublicInvite);
 
 export default router;

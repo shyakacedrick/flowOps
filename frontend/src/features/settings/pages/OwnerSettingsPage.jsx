@@ -4,6 +4,7 @@ import HybridDashboardShell from '@/features/dashboard/components/HybridDashboar
 import PageHeader from '@/shared/components/PageHeader.jsx';
 import { useAuth } from '@/app/providers/AuthProvider.jsx';
 import organizationApi from '@/services/organizationApi.js';
+import InvitesPanel from '@/features/settings/components/InvitesPanel.jsx';
 
 /**
  * SettingsPage — "How do I configure FlowOps?"
@@ -313,22 +314,25 @@ function RolesSection() {
   ];
   const TONES = { cyan: 'bg-cyan-500/10 text-cyan-300 ring-cyan-400/20', violet: 'bg-violet-500/10 text-violet-300 ring-violet-400/20', emerald: 'bg-emerald-500/10 text-emerald-300 ring-emerald-400/20' };
   return (
-    <Card title="User roles" subtitle="Who has access and what they can do">
-      <ul className="divide-y divide-white/[0.05]">
-        {rows.map((r) => (
-          <li key={r.email} className="flex items-center gap-4 py-3">
-            <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white/[0.06] text-xs font-bold text-slate-200">
-              {r.name.split(' ').map((p) => p[0]).slice(0,2).join('')}
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold text-white">{r.name}</p>
-              <p className="truncate text-[11px] text-slate-400">{r.email}</p>
-            </div>
-            <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ring-1 ${TONES[r.tone]}`}>{r.role}</span>
-          </li>
-        ))}
-      </ul>
-    </Card>
+    <div className="space-y-5">
+      <InvitesPanel />
+      <Card title="User roles" subtitle="Who has access and what they can do (sample preview — real user management lands in Phase 12)">
+        <ul className="divide-y divide-white/[0.05]">
+          {rows.map((r) => (
+            <li key={r.email} className="flex items-center gap-4 py-3">
+              <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white/[0.06] text-xs font-bold text-slate-200">
+                {r.name.split(' ').map((p) => p[0]).slice(0,2).join('')}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold text-white">{r.name}</p>
+                <p className="truncate text-[11px] text-slate-400">{r.email}</p>
+              </div>
+              <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ring-1 ${TONES[r.tone]}`}>{r.role}</span>
+            </li>
+          ))}
+        </ul>
+      </Card>
+    </div>
   );
 }
 
