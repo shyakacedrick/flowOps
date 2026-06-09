@@ -47,6 +47,13 @@ const userSchema = new mongoose.Schema(
       default: null,
       index: true,
     },
+    // Set when the user confirms their email via the verification link.
+    // null means unverified; we still let unverified users sign in, but
+    // UI surfaces a banner + certain admin actions can be gated on this.
+    emailVerifiedAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,

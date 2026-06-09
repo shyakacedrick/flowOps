@@ -11,6 +11,10 @@ export const ROUTES = {
   login:     '/login',
   signup:    '/signup',
   bookDemo:  '/book-demo',
+  // Auth flows (templates render absolute URLs using these paths).
+  forgotPassword: '/forgot-password',
+  resetPassword:  '/reset-password/:token',
+  verifyEmail:    '/verify-email/:token',
 
   // Owner workspace
   owner: {

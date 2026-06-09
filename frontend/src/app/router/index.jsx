@@ -27,6 +27,9 @@ const BookDemoPage = lazy(() => import('@/features/marketing/pages/BookDemoPage.
 const NotFoundPage = lazy(() => import('@/features/marketing/pages/NotFoundPage.jsx'));
 const JoinQueuePage = lazy(() => import('@/features/public/pages/JoinQueuePage.jsx'));
 const AcceptInvitePage = lazy(() => import('@/features/auth/pages/AcceptInvitePage.jsx'));
+const ForgotPasswordPage = lazy(() => import('@/features/auth/pages/ForgotPasswordPage.jsx'));
+const ResetPasswordPage  = lazy(() => import('@/features/auth/pages/ResetPasswordPage.jsx'));
+const VerifyEmailPage    = lazy(() => import('@/features/auth/pages/VerifyEmailPage.jsx'));
 
 // ── Owner workspace ───────────────────────────────────────────────────────
 const DashboardPage     = lazy(() => import('@/features/dashboard/pages/DashboardPage.jsx'));
@@ -80,6 +83,9 @@ export default function AppRouter() {
         <Route path={ROUTES.bookDemo} element={<BookDemoPage />} />
         <Route path="/q/:queueId"     element={<JoinQueuePage />} />
         <Route path="/invite/:token"  element={<AcceptInvitePage />} />
+        <Route path={ROUTES.forgotPassword} element={<ForgotPasswordPage />} />
+        <Route path={ROUTES.resetPassword}  element={<ResetPasswordPage />} />
+        <Route path={ROUTES.verifyEmail}    element={<VerifyEmailPage />} />
 
         {/* ── Owner workspace ────────────────────────────────────────── */}
         <Route path={ROUTES.owner.dashboard}     element={guard(<DashboardPage />)} />

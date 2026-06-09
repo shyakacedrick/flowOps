@@ -168,6 +168,15 @@ export default function LoginPage() {
               </Field>
             </div>
 
+            <div className="mt-3 text-right">
+              <Link
+                to={ROUTES.forgotPassword}
+                className="text-xs font-medium text-slate-400 transition hover:text-primary"
+              >
+                Forgot your password?
+              </Link>
+            </div>
+
             {errorMsg && (
               <div
                 role="alert"

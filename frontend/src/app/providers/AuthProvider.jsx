@@ -127,8 +127,16 @@ export function AuthProvider({ children }) {
     setSession(sessionFromUser(user));
   }, []);
 
-  const signOut = useCallback(() => {
-    setAuthToken(null);
+  const signOut = useCallback(async () => {
+    // Tell the server to blacklist this access token + revoke the refresh
+    // cookie. authApi.logout() clears the local token in its `finally` block
+    // so we don't need to do it here. Failures are non-fatal — the user
+    // should still end up logged out locally.
+    try {
+      await authApi.logout();
+    } catch {
+      setAuthToken(null);
+    }
     setSession(null);
   }, []);
 

@@ -15,11 +15,14 @@ import mongoose from 'mongoose';
 import asyncHandler from '../utils/asyncHandler.js';
 import ApiError from '../utils/ApiError.js';
 import { success, created, noContent } from '../utils/apiResponse.js';
-import { signToken } from '../utils/token.js';
 import Invite, { INVITE_ROLES } from '../models/Invite.js';
 import User, { USER_ROLES } from '../models/User.js';
 import Organization from '../models/Organization.js';
 import { logUserRegistered } from '../services/activityService.js';
+import { buildAuthPayload } from './authController.js';
+import { sendMail } from '../services/mailer.js';
+import { inviteTemplate } from '../services/emailTemplates.js';
+import env from '../config/env.js';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const INVITE_TTL_DAYS = 7;
@@ -29,11 +32,6 @@ const assertObjectId = (id, label = 'id') => {
     throw ApiError.badRequest(`Invalid ${label}`);
   }
 };
-
-const buildAuthPayload = (user) => ({
-  user: user.toJSON(),
-  token: signToken({ sub: user.id, role: user.role }),
-});
 
 /**
  * Only owners + platform admins manage invites. Staff cannot invite.
@@ -98,6 +96,21 @@ export const createInvite = asyncHandler(async (req, res) => {
     organizationId: org._id,
     createdBy: req.user._id,
     expiresAt: new Date(Date.now() + INVITE_TTL_DAYS * 24 * 60 * 60 * 1000),
+  });
+
+  // Send the invite email (fire-and-forget — owner still gets the raw
+  // token in the API response as a fallback for manual sharing).
+  const url = `${env.appUrl}/invite/${encodeURIComponent(invite.token)}`;
+  const { subject, html, text } = inviteTemplate({
+    inviterName: req.user.name,
+    orgName:     org.name,
+    role:        invite.role,
+    url,
+    ttlDays:     INVITE_TTL_DAYS,
+  });
+  sendMail({ to: invite.email, subject, html, text }).catch((err) => {
+    // eslint-disable-next-line no-console
+    console.error('[invite] mail send failed:', err?.message || err);
   });
 
   return created(res, invite.toJSON());
@@ -222,7 +235,7 @@ export const acceptPublicInvite = asyncHandler(async (req, res) => {
 
   await logUserRegistered(user);
 
-  return created(res, buildAuthPayload(user));
+  return created(res, await buildAuthPayload(user, req, res));
 });
 
 /* ============================================================== shared util */
