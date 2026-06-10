@@ -45,6 +45,7 @@ export const ROUTES = {
     overview:           '/admin/overview',
     organizations:      '/admin/organizations',
     users:              '/admin/users',
+    queues:             '/admin/queues',
     subscriptions:      '/admin/subscriptions',
     platformAnalytics:  '/admin/platform-analytics',
     systemMonitoring:   '/admin/system-monitoring',

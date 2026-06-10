@@ -15,6 +15,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { getAuthToken, setAuthToken } from '@/services/api.js';
 import authApi from '@/services/authApi.js';
+import { STORAGE_KEYS } from '@/shared/constants/storage.js';
 
 // NOTE: values intentionally match the backend USER_ROLES enum
 // (see backend/src/models/User.js). Keep them in sync.
@@ -39,7 +40,7 @@ export const ROLE_META = {
   },
 };
 
-const STORAGE_KEY = 'flowops.session';
+const STORAGE_KEY = STORAGE_KEYS.SESSION;
 
 const AuthContext = createContext(null);
 
@@ -117,6 +118,36 @@ export function AuthProvider({ children }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ── Cross-tab + global auth-expiry sync ─────────────────────────────────
+  // 1. `storage` events fire when *another* tab writes to localStorage. If
+  //    a second tab signs in/out (or signs in as a different user), we
+  //    reload so this tab can't keep operating on the now-stale session.
+  // 2. `flowops:auth-expired` is dispatched by services/api.js when a token
+  //    refresh fails. Without this listener the UI would happily keep
+  //    rendering signed-in chrome until the next API call returned 401.
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+
+    const onStorage = (e) => {
+      if (e.key === STORAGE_KEYS.SESSION || e.key === STORAGE_KEYS.TOKEN) {
+        // Hard reload is the simplest way to guarantee we don't have a
+        // mixed-account state (stale session in React + new token in storage).
+        window.location.reload();
+      }
+    };
+    const onExpired = () => {
+      setAuthToken(null);
+      setSession(null);
+    };
+
+    window.addEventListener('storage', onStorage);
+    window.addEventListener('flowops:auth-expired', onExpired);
+    return () => {
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener('flowops:auth-expired', onExpired);
+    };
+  }, []);
+
   /**
    * signIn(user) — accepts the raw user object returned by the backend
    * (see backend/src/controllers/authController.js → buildAuthPayload).
@@ -129,14 +160,14 @@ export function AuthProvider({ children }) {
 
   const signOut = useCallback(async () => {
     // Tell the server to blacklist this access token + revoke the refresh
-    // cookie. authApi.logout() clears the local token in its `finally` block
-    // so we don't need to do it here. Failures are non-fatal — the user
-    // should still end up logged out locally.
+    // cookie. Failures are non-fatal — the user should still end up logged
+    // out locally, so we always clear the token + session afterwards.
     try {
       await authApi.logout();
     } catch {
-      setAuthToken(null);
+      /* network error — ignore; local cleanup still runs below */
     }
+    setAuthToken(null);
     setSession(null);
   }, []);
 

@@ -122,6 +122,25 @@ export const register = asyncHandler(async (req, res) => {
       );
     }
   }
+  // Defensive checks against orphan-account states. The frontend Signup page
+  // always sends `company` for business owners and uses invite-accept (with a
+  // pre-bound organizationId) for staff, but a direct API call could leave
+  // these out and create a user who can't do anything until manual cleanup.
+  if (requestedRole === USER_ROLES.BUSINESS_OWNER && !isWorkspaceSignup) {
+    throw ApiError.badRequest(
+      'A company name is required to register as a business owner'
+    );
+  }
+  if (requestedRole === USER_ROLES.STAFF && !organizationId) {
+    throw ApiError.badRequest(
+      'Staff accounts must be created via an organization invite'
+    );
+  }
+  if (requestedRole === USER_ROLES.PLATFORM_ADMIN && organizationId) {
+    throw ApiError.badRequest(
+      'Platform admins must not be tied to an organization'
+    );
+  }
   if (plan && !ORGANIZATION_PLANS.includes(plan)) {
     throw ApiError.badRequest(
       `plan must be one of: ${ORGANIZATION_PLANS.join(', ')}`
@@ -147,8 +166,17 @@ export const register = asyncHandler(async (req, res) => {
       plan: plan || 'starter',
       ownerId: user._id,
     });
-    user.organizationId = org._id;
-    await user.save();
+    // If the user update fails for any reason (Mongo flake, validation),
+    // roll the org back so we don't leave a dangling Organization with no
+    // owner pointer. Mongo standalone (dev) has no multi-doc transactions,
+    // so a manual compensating delete is the most reliable option.
+    try {
+      user.organizationId = org._id;
+      await user.save();
+    } catch (err) {
+      await Organization.deleteOne({ _id: org._id }).catch(() => {});
+      throw err;
+    }
     await logOrganizationCreated(org, user);
   }
 
@@ -228,6 +256,17 @@ export const refresh = asyncHandler(async (req, res) => {
   if (!user) {
     clearRefreshCookie(res);
     throw ApiError.unauthorized('User no longer exists');
+  }
+  // Suspended accounts must not be able to silently rotate their way to a
+  // fresh access token. Revoke all of their refresh tokens to force a clean
+  // re-login (which will then hit the same check in `login`).
+  if (user.suspendedAt) {
+    await RefreshToken.updateMany(
+      { userId: user._id, revokedAt: null },
+      { $set: { revokedAt: new Date() } }
+    );
+    clearRefreshCookie(res);
+    throw ApiError.forbidden('Your account has been suspended');
   }
 
   // Rotate.

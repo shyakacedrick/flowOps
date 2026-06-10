@@ -17,6 +17,7 @@
 import { lazy, Suspense } from 'react';
 import { Route, Routes } from 'react-router-dom';
 import PrivateRoute from '@/features/auth/components/PrivateRoute.jsx';
+import { ROLES } from '@/app/providers/AuthProvider.jsx';
 import { ROUTES } from '@/shared/constants/routes.js';
 
 // ── Public ────────────────────────────────────────────────────────────────
@@ -55,6 +56,7 @@ const StaffSettingsPage  = lazy(() => import('@/features/settings/pages/StaffSet
 const AdminOverview          = lazy(() => import('@/features/admin/pages/Overview.jsx'));
 const AdminOrganizations     = lazy(() => import('@/features/admin/pages/Organizations.jsx'));
 const AdminUsers             = lazy(() => import('@/features/admin/pages/Users.jsx'));
+const AdminQueues            = lazy(() => import('@/features/admin/pages/Queues.jsx'));
 const AdminSubscriptions     = lazy(() => import('@/features/admin/pages/Subscriptions.jsx'));
 const AdminPlatformAnalytics = lazy(() => import('@/features/analytics/pages/PlatformAnalytics.jsx'));
 const AdminSystemMonitoring  = lazy(() => import('@/features/admin/pages/SystemMonitoring.jsx'));
@@ -70,7 +72,12 @@ function PageLoader() {
   );
 }
 
-const guard = (el) => <PrivateRoute>{el}</PrivateRoute>;
+// Role-scoped guards: each one bounces signed-in users with the wrong role
+// to *their* home route, so an owner clicking an admin link doesn't get a
+// 403 from the API and think the app is broken.
+const ownerGuard = (el) => <PrivateRoute roles={[ROLES.BUSINESS_OWNER]}>{el}</PrivateRoute>;
+const staffGuard = (el) => <PrivateRoute roles={[ROLES.STAFF]}>{el}</PrivateRoute>;
+const adminGuard = (el) => <PrivateRoute roles={[ROLES.ADMIN]}>{el}</PrivateRoute>;
 
 export default function AppRouter() {
   return (
@@ -88,35 +95,36 @@ export default function AppRouter() {
         <Route path={ROUTES.verifyEmail}    element={<VerifyEmailPage />} />
 
         {/* ── Owner workspace ────────────────────────────────────────── */}
-        <Route path={ROUTES.owner.dashboard}     element={guard(<DashboardPage />)} />
-        <Route path={ROUTES.owner.liveQueue}     element={guard(<LiveQueuePage />)} />
-        <Route path={ROUTES.owner.operations}    element={guard(<OperationsPage />)} />
-        <Route path={ROUTES.owner.customerFeed}  element={guard(<CustomerFeedPage />)} />
-        <Route path={ROUTES.owner.analytics}     element={guard(<AnalyticsPage />)} />
-        <Route path={ROUTES.owner.smartInsights} element={guard(<SmartInsightsPage />)} />
-        <Route path={ROUTES.owner.schedule}      element={guard(<SchedulePage />)} />
-        <Route path={ROUTES.owner.settings}      element={guard(<SettingsPage />)} />
+        <Route path={ROUTES.owner.dashboard}     element={ownerGuard(<DashboardPage />)} />
+        <Route path={ROUTES.owner.liveQueue}     element={ownerGuard(<LiveQueuePage />)} />
+        <Route path={ROUTES.owner.operations}    element={ownerGuard(<OperationsPage />)} />
+        <Route path={ROUTES.owner.customerFeed}  element={ownerGuard(<CustomerFeedPage />)} />
+        <Route path={ROUTES.owner.analytics}     element={ownerGuard(<AnalyticsPage />)} />
+        <Route path={ROUTES.owner.smartInsights} element={ownerGuard(<SmartInsightsPage />)} />
+        <Route path={ROUTES.owner.schedule}      element={ownerGuard(<SchedulePage />)} />
+        <Route path={ROUTES.owner.settings}      element={ownerGuard(<SettingsPage />)} />
 
         {/* ── Staff operator console ─────────────────────────────────── */}
-        <Route path={ROUTES.staff.dashboard}     element={guard(<StaffDashboardPage />)} />
-        <Route path={ROUTES.staff.myQueue}       element={guard(<MyQueuePage />)} />
-        <Route path={ROUTES.staff.customers}     element={guard(<StaffCustomersPage />)} />
-        <Route path={ROUTES.staff.serviceDesk}   element={guard(<ServiceDeskPage />)} />
-        <Route path={ROUTES.staff.activityFeed}  element={guard(<ActivityFeedPage />)} />
-        <Route path={ROUTES.staff.notifications} element={guard(<NotificationsPage />)} />
-        <Route path={ROUTES.staff.schedule}      element={guard(<StaffSchedulePage />)} />
-        <Route path={ROUTES.staff.settings}      element={guard(<StaffSettingsPage />)} />
+        <Route path={ROUTES.staff.dashboard}     element={staffGuard(<StaffDashboardPage />)} />
+        <Route path={ROUTES.staff.myQueue}       element={staffGuard(<MyQueuePage />)} />
+        <Route path={ROUTES.staff.customers}     element={staffGuard(<StaffCustomersPage />)} />
+        <Route path={ROUTES.staff.serviceDesk}   element={staffGuard(<ServiceDeskPage />)} />
+        <Route path={ROUTES.staff.activityFeed}  element={staffGuard(<ActivityFeedPage />)} />
+        <Route path={ROUTES.staff.notifications} element={staffGuard(<NotificationsPage />)} />
+        <Route path={ROUTES.staff.schedule}      element={staffGuard(<StaffSchedulePage />)} />
+        <Route path={ROUTES.staff.settings}      element={staffGuard(<StaffSettingsPage />)} />
 
         {/* ── Platform admin portal ──────────────────────────────────── */}
-        <Route path={ROUTES.admin.overview}          element={guard(<AdminOverview />)} />
-        <Route path={ROUTES.admin.organizations}     element={guard(<AdminOrganizations />)} />
-        <Route path={ROUTES.admin.users}             element={guard(<AdminUsers />)} />
-        <Route path={ROUTES.admin.subscriptions}     element={guard(<AdminSubscriptions />)} />
-        <Route path={ROUTES.admin.platformAnalytics} element={guard(<AdminPlatformAnalytics />)} />
-        <Route path={ROUTES.admin.systemMonitoring}  element={guard(<AdminSystemMonitoring />)} />
-        <Route path={ROUTES.admin.auditLogs}         element={guard(<AdminAuditLogs />)} />
-        <Route path={ROUTES.admin.supportCenter}     element={guard(<AdminSupportCenter />)} />
-        <Route path={ROUTES.admin.settings}          element={guard(<AdminSettings />)} />
+        <Route path={ROUTES.admin.overview}          element={adminGuard(<AdminOverview />)} />
+        <Route path={ROUTES.admin.organizations}     element={adminGuard(<AdminOrganizations />)} />
+        <Route path={ROUTES.admin.users}             element={adminGuard(<AdminUsers />)} />
+        <Route path={ROUTES.admin.queues}            element={adminGuard(<AdminQueues />)} />
+        <Route path={ROUTES.admin.subscriptions}     element={adminGuard(<AdminSubscriptions />)} />
+        <Route path={ROUTES.admin.platformAnalytics} element={adminGuard(<AdminPlatformAnalytics />)} />
+        <Route path={ROUTES.admin.systemMonitoring}  element={adminGuard(<AdminSystemMonitoring />)} />
+        <Route path={ROUTES.admin.auditLogs}         element={adminGuard(<AdminAuditLogs />)} />
+        <Route path={ROUTES.admin.supportCenter}     element={adminGuard(<AdminSupportCenter />)} />
+        <Route path={ROUTES.admin.settings}          element={adminGuard(<AdminSettings />)} />
 
         <Route path="*" element={<NotFoundPage />} />
       </Routes>

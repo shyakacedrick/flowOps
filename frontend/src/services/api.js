@@ -19,7 +19,8 @@ const BASE_URL =
   (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL) ||
   'http://localhost:5000/api';
 
-const TOKEN_KEY = 'flowops.token';
+import { STORAGE_KEYS } from '@/shared/constants/storage.js';
+const TOKEN_KEY = STORAGE_KEYS.TOKEN;
 
 export function getAuthToken() {
   try {
@@ -119,7 +120,13 @@ export async function request(path, opts = {}) {
     }
     // Refresh failed — drop the stale access token so subsequent UI sees
     // an unauthenticated state instead of looping on the same dead token.
+    // Also fire a global event so AuthProvider can clear React state
+    // immediately (otherwise the UI keeps rendering signed-in chrome
+    // until the next route change re-runs the auth guards).
     setAuthToken(null);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('flowops:auth-expired'));
+    }
   }
 
   const contentType = res.headers.get('content-type') ?? '';
