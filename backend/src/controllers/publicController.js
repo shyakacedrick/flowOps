@@ -18,6 +18,7 @@ import Queue, { QUEUE_STATUSES } from '../models/Queue.js';
 import Organization from '../models/Organization.js';
 import Ticket, { TICKET_STATUSES } from '../models/Ticket.js';
 import { logTicketCreated } from '../services/activityService.js';
+import { publish as publishEvent } from '../services/sseBroker.js';
 
 const assertObjectId = (id, label = 'id') => {
   if (!mongoose.isValidObjectId(id)) {
@@ -124,6 +125,10 @@ export const joinQueuePublic = asyncHandler(async (req, res) => {
 
   // Best-effort activity log; controllers shouldn't fail because logging did.
   await logTicketCreated(ticket, null);
+
+  // Push a live event so any connected dashboard for this org sees the
+  // new ticket appear instantly (no poll delay).
+  publishEvent(`org:${ticket.organizationId}`, 'ticket:created', ticket.toJSON());
 
   const position = await positionForWaitingTicket(ticket);
   return created(res, publicTicketView(ticket, position));

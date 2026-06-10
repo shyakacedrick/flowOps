@@ -13,6 +13,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import ticketApi from '@/services/ticketApi.js';
+import { useOrgEventStream } from '@/shared/hooks/useEventStream.js';
 
 export function useTickets(queueId, { pollMs = 4000, status } = {}) {
   const [tickets, setTickets] = useState([]);
@@ -73,6 +74,45 @@ export function useTickets(queueId, { pollMs = 4000, status } = {}) {
       document.removeEventListener('visibilitychange', onVisibility);
     };
   }, [queueId, pollMs, fetchOnce]);
+
+  // --- Live SSE updates ---------------------------------------------------
+  // Each useTickets instance filters server events by its own queueId so
+  // a dashboard rendering N queue consoles only updates the relevant lists.
+  // `status` prop also filters — if the caller asked for waiting-only, we
+  // drop tickets that have transitioned out of waiting.
+  const stream = useOrgEventStream();
+  useEffect(() => {
+    if (!queueId) return undefined;
+    const sameQueue = (t) => t && String(t.queueId) === String(queueId);
+    const matchesStatusFilter = (t) => !status || t.status === status;
+
+    const offCreated = stream.on('ticket:created', (t) => {
+      if (!sameQueue(t) || !matchesStatusFilter(t)) return;
+      setTickets((prev) => (prev.some((x) => x._id === t._id) ? prev : [...prev, t]));
+    });
+    const offUpdated = stream.on('ticket:updated', (t) => {
+      if (!sameQueue(t)) return;
+      setTickets((prev) => {
+        const idx = prev.findIndex((x) => x._id === t._id);
+        // If a status filter is in effect and the ticket no longer matches,
+        // remove it from the local list (e.g. waiting → serving in a
+        // 'waiting' view).
+        if (!matchesStatusFilter(t)) {
+          return idx === -1 ? prev : prev.filter((x) => x._id !== t._id);
+        }
+        if (idx === -1) return [...prev, t];
+        const next = prev.slice();
+        next[idx] = t;
+        return next;
+      });
+    });
+    const offDeleted = stream.on('ticket:deleted', ({ _id, queueId: qid } = {}) => {
+      if (qid && String(qid) !== String(queueId)) return;
+      setTickets((prev) => prev.filter((x) => x._id !== _id));
+    });
+    return () => { offCreated(); offUpdated(); offDeleted(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queueId, status]);
 
   // --- Mutators ------------------------------------------------------------
   const beginMutation = useCallback(() => {

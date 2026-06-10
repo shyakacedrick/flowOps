@@ -9,6 +9,7 @@ import {
   logQueueUpdated,
   logQueueDeleted,
 } from '../services/activityService.js';
+import { publish as publishEvent } from '../services/sseBroker.js';
 
 /**
  * Org-scoped filter applied to every list/read.
@@ -74,6 +75,7 @@ export const createQueue = asyncHandler(async (req, res) => {
   });
 
   await logQueueCreated(queue, req.user);
+  publishEvent(`org:${queue.organizationId}`, 'queue:created', queue.toJSON());
   return created(res, queue);
 });
 
@@ -114,6 +116,7 @@ export const updateQueue = asyncHandler(async (req, res) => {
   await queue.save();
 
   await logQueueUpdated(queue, req.user, changes);
+  publishEvent(`org:${queue.organizationId}`, 'queue:updated', queue.toJSON());
   return success(res, queue);
 });
 
@@ -135,6 +138,7 @@ export const deleteQueue = asyncHandler(async (req, res) => {
   queue.deletedAt = new Date();
   await queue.save();
   await logQueueDeleted(queue, req.user);
+  publishEvent(`org:${queue.organizationId}`, 'queue:deleted', { _id: queue._id });
   return noContent(res);
 });
 
@@ -155,6 +159,7 @@ export const restoreQueue = asyncHandler(async (req, res) => {
 
   queue.deletedAt = null;
   await queue.save();
+  publishEvent(`org:${queue.organizationId}`, 'queue:updated', queue.toJSON());
   return success(res, queue);
 });
 

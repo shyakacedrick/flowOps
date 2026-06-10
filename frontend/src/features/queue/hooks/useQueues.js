@@ -18,6 +18,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import queueApi from '@/services/queueApi.js';
+import { useOrgEventStream } from '@/shared/hooks/useEventStream.js';
 
 export function useQueues(params, { pollMs = 5000 } = {}) {
   const [queues, setQueues] = useState([]);
@@ -83,6 +84,30 @@ export function useQueues(params, { pollMs = 5000 } = {}) {
       document.removeEventListener('visibilitychange', onVisibility);
     };
   }, [pollMs, fetchOnce]);
+
+  // --- Live SSE updates -----------------------------------------------------
+  // Polling stays on as a fallback (browsers behind proxies that strip SSE),
+  // but when the live channel is connected the UI updates within tens of
+  // milliseconds of a server-side change instead of waiting for the next tick.
+  const stream = useOrgEventStream();
+  useEffect(() => {
+    const offCreated = stream.on('queue:created', (queue) => {
+      if (!queue?._id) return;
+      setQueues((prev) => (prev.some((q) => q._id === queue._id) ? prev : [queue, ...prev]));
+    });
+    const offUpdated = stream.on('queue:updated', (queue) => {
+      if (!queue?._id) return;
+      setQueues((prev) => prev.map((q) => (q._id === queue._id ? queue : q)));
+    });
+    const offDeleted = stream.on('queue:deleted', ({ _id } = {}) => {
+      if (!_id) return;
+      setQueues((prev) => prev.filter((q) => q._id !== _id));
+    });
+    return () => {
+      offCreated(); offUpdated(); offDeleted();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // --- Optimistic mutators ---------------------------------------------------
   // These let callers update the local list immediately, without waiting for

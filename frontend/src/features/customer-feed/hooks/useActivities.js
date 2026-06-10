@@ -7,6 +7,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import activityApi from '@/services/activityApi.js';
+import { useOrgEventStream } from '@/shared/hooks/useEventStream.js';
 
 export function useActivities({ limit = 50, type, pollMs = 5000 } = {}) {
   const [activities, setActivities] = useState([]);
@@ -52,6 +53,24 @@ export function useActivities({ limit = 50, type, pollMs = 5000 } = {}) {
       document.removeEventListener('visibilitychange', onVisibility);
     };
   }, [pollMs, fetchOnce]);
+
+  // --- Live SSE updates ---------------------------------------------------
+  // Prepend new activity rows as they arrive. Respect the `type` filter and
+  // the `limit` so the feed stays bounded.
+  const stream = useOrgEventStream();
+  useEffect(() => {
+    const off = stream.on('activity:new', (activity) => {
+      if (!activity?._id) return;
+      if (type && activity.type !== type) return;
+      setActivities((prev) => {
+        if (prev.some((a) => a._id === activity._id)) return prev;
+        const next = [activity, ...prev];
+        return next.length > limit ? next.slice(0, limit) : next;
+      });
+    });
+    return off;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [type, limit]);
 
   return { activities, status, error, refresh };
 }

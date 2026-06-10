@@ -8,6 +8,7 @@ import inviteRoutes from './inviteRoutes.js';
 import analyticsRoutes from './analyticsRoutes.js';
 import publicRoutes from './publicRoutes.js';
 import userRoutes from './userRoutes.js';
+import eventsRoutes from './eventsRoutes.js';
 
 const router = Router();
 
@@ -30,6 +31,7 @@ router.use('/activities', activityRoutes);
 router.use('/invites', inviteRoutes);
 router.use('/analytics', analyticsRoutes);
 router.use('/users', userRoutes);
+router.use('/events', eventsRoutes);
 router.use('/public', publicRoutes);
 
 export default router;

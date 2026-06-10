@@ -1,0 +1,45 @@
+# Compose stack for local end-to-end development.
+#
+#   docker compose up --build           → backend + mongo
+#   docker compose up mongo             → just the database (run backend on host)
+#
+# The backend service reads its config from backend/.env. Copy
+# backend/.env.example → backend/.env first and override MONGO_URI to
+# point at the `mongo` service: mongodb://mongo:27017/flowops.
+
+services:
+  mongo:
+    image: mongo:7
+    container_name: flowops-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.runCommand({ping:1}).ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: flowops-backend
+    restart: unless-stopped
+    depends_on:
+      mongo:
+        condition: service_healthy
+    env_file:
+      - ./backend/.env
+    environment:
+      # Override whatever MONGO_URI is in .env so the container always
+      # talks to the compose-managed mongo instance.
+      MONGO_URI: mongodb://mongo:27017/flowops
+      NODE_ENV: production
+    ports:
+      - "5000:5000"
+
+volumes:
+  mongo-data:

@@ -9,6 +9,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import publicApi from '@/services/publicApi.js';
+import { useTicketEventStream } from '@/shared/hooks/useEventStream.js';
 
 const TERMINAL_STATUSES = ['served', 'skipped', 'cancelled'];
 
@@ -67,6 +68,23 @@ export function useQueuePosition(ticketId, { pollMs = 5000 } = {}) {
       document.removeEventListener('visibilitychange', onVisibility);
     };
   }, [ticketId, pollMs, fetchOnce]);
+
+  // --- Live SSE updates ----------------------------------------------------
+  // The server pushes `ticket:updated` to the per-ticket channel the moment
+  // staff calls / serves / skips this customer. The SSE payload only carries
+  // status fields (no `position`), so we trigger a quick silent re-fetch to
+  // get the freshly-computed position alongside the new status.
+  const stream = useTicketEventStream(ticketId, { enabled: !!ticketId });
+  useEffect(() => {
+    if (!ticketId) return undefined;
+    const off = stream.on('ticket:updated', () => {
+      // Skip if we already know the ticket has terminated.
+      if (stoppedRef.current) return;
+      fetchOnce({ silent: true });
+    });
+    return off;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ticketId]);
 
   return { ticket, status, error, refresh };
 }

@@ -102,7 +102,14 @@ export function AuthProvider({ children }) {
       if (cancelled) return;
 
       if (res.ok && res.data?.user) {
-        setSession(sessionFromUser(res.data.user));
+        // Preserve the original `signedInAt` from the persisted session so
+        // re-hydration doesn't churn the localStorage payload (and trigger
+        // `storage` events in other tabs / DevTools panels).
+        setSession((prev) => {
+          const next = sessionFromUser(res.data.user);
+          if (prev?.signedInAt) next.signedInAt = prev.signedInAt;
+          return next;
+        });
       } else {
         // Token is invalid / expired / revoked. Clean up.
         setAuthToken(null);
@@ -122,16 +129,45 @@ export function AuthProvider({ children }) {
   // 1. `storage` events fire when *another* tab writes to localStorage. If
   //    a second tab signs in/out (or signs in as a different user), we
   //    reload so this tab can't keep operating on the now-stale session.
+  //    IMPORTANT: only reload when the user *identity* changes — not on
+  //    every write. Re-hydration after a page load rewrites the session
+  //    blob (same user, refreshed timestamps); reloading on those would
+  //    create a multi-tab reload loop.
   // 2. `flowops:auth-expired` is dispatched by services/api.js when a token
   //    refresh fails. Without this listener the UI would happily keep
   //    rendering signed-in chrome until the next API call returned 401.
   useEffect(() => {
     if (typeof window === 'undefined') return undefined;
 
+    const identityFromSessionJSON = (raw) => {
+      if (!raw) return null;
+      try {
+        const parsed = JSON.parse(raw);
+        return parsed?.userId || parsed?.user?._id || parsed?.user?.id || null;
+      } catch {
+        return null;
+      }
+    };
+
     const onStorage = (e) => {
-      if (e.key === STORAGE_KEYS.SESSION || e.key === STORAGE_KEYS.TOKEN) {
-        // Hard reload is the simplest way to guarantee we don't have a
-        // mixed-account state (stale session in React + new token in storage).
+      // Only react to *cross-tab* writes that change something we care about.
+      if (e.storageArea && e.storageArea !== window.localStorage) return;
+
+      if (e.key === STORAGE_KEYS.TOKEN) {
+        // Token value swapped (sign-in/out in another tab). A null → value
+        // or value → null transition matters; value → same-value doesn't.
+        if (e.oldValue === e.newValue) return;
+        window.location.reload();
+        return;
+      }
+
+      if (e.key === STORAGE_KEYS.SESSION) {
+        // Re-hydration rewrites the session blob with the same userId but
+        // (potentially) a fresh `signedInAt`. Only reload if the underlying
+        // user identity actually changed — otherwise we'd loop endlessly.
+        const oldId = identityFromSessionJSON(e.oldValue);
+        const newId = identityFromSessionJSON(e.newValue);
+        if (oldId === newId) return;
         window.location.reload();
       }
     };

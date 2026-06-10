@@ -34,6 +34,9 @@ const limiter = (windowMs, max, message) =>
     standardHeaders: true,
     legacyHeaders: false,
     message: message ? { success: false, message } : undefined,
+    // Skip rate limiting in the integration test suite so tests can hit
+    // /register and /login dozens of times without hitting the per-hour cap.
+    skip: () => process.env.NODE_ENV === 'test',
   });
 
 const loginLimiter         = limiter(60 * 1000,        5,  'Too many login attempts, please try again shortly.');

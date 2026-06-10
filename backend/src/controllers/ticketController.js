@@ -9,6 +9,7 @@ import {
   logTicketCreated,
   logTicketStatusChange,
 } from '../services/activityService.js';
+import { publish as publishEvent } from '../services/sseBroker.js';
 
 const assertObjectId = (id, label = 'id') => {
   if (!mongoose.isValidObjectId(id)) {
@@ -72,6 +73,9 @@ export const createTicket = asyncHandler(async (req, res) => {
   });
 
   await logTicketCreated(ticket, req.user);
+  // Push typed event so connected dashboards prepend the new ticket
+  // without waiting for the next poll tick.
+  publishEvent(`org:${ticket.organizationId}`, 'ticket:created', ticket.toJSON());
   return created(res, ticket);
 });
 
@@ -149,6 +153,13 @@ export const updateTicket = asyncHandler(async (req, res) => {
     await logTicketStatusChange(ticket, req.user, previousStatus);
   }
 
+  // Push to both the org channel (dashboards) and the ticket channel
+  // (the customer's public page subscribes to this to see live position
+  // / status updates without polling).
+  const payload = ticket.toJSON();
+  publishEvent(`org:${ticket.organizationId}`, 'ticket:updated', payload);
+  publishEvent(`ticket:${ticket._id}`, 'ticket:updated', payload);
+
   return success(res, ticket);
 });
 
@@ -163,6 +174,7 @@ export const deleteTicket = asyncHandler(async (req, res) => {
   if (!ticket) throw ApiError.notFound('Ticket not found');
   ticket.deletedAt = new Date();
   await ticket.save();
+  publishEvent(`org:${ticket.organizationId}`, 'ticket:deleted', { _id: ticket._id, queueId: ticket.queueId });
   return noContent(res);
 });
 

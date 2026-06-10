@@ -1,4 +1,5 @@
 import Activity, { ACTIVITY_TYPES } from '../models/Activity.js';
+import { publish as publishEvent } from './sseBroker.js';
 
 /**
  * Activity logging service.
@@ -7,13 +8,21 @@ import Activity, { ACTIVITY_TYPES } from '../models/Activity.js';
  * they call `logActivity` (or one of the helpers) so that:
  *   - logging logic stays in one place
  *   - failures never break the primary request (logged & swallowed)
- *   - future consumers (Socket.IO, Analytics, Smart Insights, Notifications)
+ *   - future consumers (SSE broker, Analytics, Smart Insights, Notifications)
  *     can be wired in here without touching controllers.
  */
 
 const safeLog = async (doc) => {
   try {
-    return await Activity.create(doc);
+    const created = await Activity.create(doc);
+    // Broadcast to the org's live event channel so connected dashboards
+    // can update their activity feed without a poll round-trip. Platform-
+    // wide events (no organizationId) intentionally don't broadcast — the
+    // admin Overview still polls /activities for those.
+    if (created?.organizationId) {
+      publishEvent(`org:${created.organizationId}`, 'activity:new', created.toJSON());
+    }
+    return created;
   } catch (err) {
     // eslint-disable-next-line no-console
     console.error('[activity] Failed to record activity:', err.message);
