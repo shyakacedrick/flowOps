@@ -1,0 +1,47 @@
+# Netlify build + redirect config for the FlowOps SPA.
+#
+# Drop this in `frontend/`. Netlify auto-detects it when you point a site
+# at the `frontend` directory of this repo.
+#
+# Free-tier notes (no card required):
+#   - 100 GB bandwidth / mo, 300 build minutes / mo
+#   - Auto-deploy on every push to the tracked branch
+#   - Free TLS for *.netlify.app and any custom domain
+#   - Branch previews ("deploy previews") on every PR
+
+[build]
+  base    = "frontend"
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  # Node version Netlify will use for the build. Match local dev.
+  NODE_VERSION = "22"
+
+# SPA fallback — React Router owns every path that isn't a real file.
+# Without this, a hard refresh on /admin/queues returns 404.
+[[redirects]]
+  from   = "/*"
+  to     = "/index.html"
+  status = 200
+
+# Long-cache hashed asset files; force-revalidate the entry HTML so a new
+# deploy is picked up immediately by returning browsers.
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+
+# Baseline security headers. Tighten CSP after the backend URL is known.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options        = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy        = "strict-origin-when-cross-origin"
+    Permissions-Policy     = "camera=(), microphone=(), geolocation=()"
