@@ -1,55 +1,33 @@
-# FlowOps — Landing Page
+# FlowOps Frontend
 
-Premium, dark-mode, dashboard-style landing page for **FlowOps**, a smart queue management & business intelligence SaaS.
+React 18 + Vite 5 SPA — owner dashboard, staff console, customer flow analytics, and platform-admin tooling for the FlowOps queue management platform.
 
-Built with **React 18 + Vite + Tailwind CSS**.
+See the [project root README](../README.md) for the live demo, architecture overview, deployment, and full setup instructions.
 
-## Quick start
+## Local development
 
 ```bash
+cp .env.example .env.local       # default points at http://localhost:5000/api
 npm install
+npm run dev                      # serves on http://localhost:5173
+```
+
+## Useful scripts
+
+| Command | What it does |
+|---|---|
+| `npm run dev` | Vite dev server with HMR |
+| `npm run build` | Production build → `dist/` |
+| `npm run preview` | Serve the production build locally |
+
+## Tunnel / mobile testing
+
+To expose the dev server through ngrok (e.g. for testing on a phone):
+
+```powershell
+# PowerShell
+$env:VITE_TUNNEL = "1"
 npm run dev
 ```
 
-Then open the URL printed by Vite (typically http://localhost:5173).
-
-## Build
-
-```bash
-npm run build
-npm run preview
-```
-
-## Structure
-
-```
-src/
-  App.jsx                  # Page composition
-  main.jsx                 # React entry
-  index.css                # Tailwind layers + design tokens
-  components/
-    Navbar.jsx
-    Hero.jsx
-    DashboardMock.jsx      # Hero dashboard mockup (pure Tailwind/SVG)
-    LiveStats.jsx
-    ProblemSolution.jsx
-    Features.jsx
-    DashboardShowcase.jsx  # Large dashboard mockup with floating labels
-    HowItWorks.jsx
-    Industries.jsx
-    Testimonial.jsx
-    ClosingCTA.jsx
-    Footer.jsx
-    Logo.jsx
-```
-
-## Design system
-
-| Token            | Value     |
-| ---------------- | --------- |
-| Background       | `#0B1120` |
-| Primary accent   | `#3B82F6` |
-| Secondary accent | `#06B6D4` |
-| Font             | Inter / Manrope |
-
-All charts and dashboard visuals are crafted with Tailwind utilities and inline SVG — no chart libraries required.
+The `VITE_TUNNEL` flag switches HMR to `clientPort: 443` so the websocket survives the HTTPS tunnel. Leave the variable unset for normal localhost dev.
