@@ -7,6 +7,8 @@ import {
   refresh,
   logout,
   me,
+  updateMe,
+  changeMyPassword,
   requestEmailVerification,
   confirmEmailVerification,
   forgotPassword,
@@ -46,12 +48,18 @@ const verifySendLimiter    = limiter(60 * 60 * 1000,   5,  'Too many verificatio
 const verifyConfirmLimiter = limiter(60 * 60 * 1000,  20);
 const forgotLimiter        = limiter(60 * 60 * 1000,   5,  'Too many reset requests, please try again later.');
 const resetLimiter         = limiter(60 * 60 * 1000,  10);
+// Self-service password changes are gated behind the user's current
+// password, but we still cap the rate to slow down credential-stuffing
+// attempts against a stolen access token.
+const changePasswordLimiter = limiter(60 * 60 * 1000,  10, 'Too many password changes, please try again later.');
 
 router.post('/register', registerLimiter, register);
 router.post('/login',    loginLimiter,    login);
 router.post('/refresh',  refreshLimiter,  refresh);
 router.post('/logout',   authenticateUser, logout);
-router.get ('/me',       authenticateUser, me);
+router.get  ('/me',      authenticateUser, me);
+router.patch('/me',      authenticateUser, updateMe);
+router.post ('/me/password', changePasswordLimiter, authenticateUser, changeMyPassword);
 
 // Email verification
 router.post('/verify-email/send',    verifySendLimiter,    authenticateUser, requestEmailVerification);

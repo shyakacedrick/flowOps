@@ -35,6 +35,18 @@ export const authApi = {
   refresh:      ()        => api.post('/auth/refresh'),
   requestDemo:  (payload) => api.post('/auth/demo', payload, { auth: false }),
 
+  // ── Self-service profile + password ───────────────────────────────────
+  // updateMe edits the signed-in user (currently just `name`).
+  // changePassword requires the current password; on success the server
+  // revokes every other refresh token and issues a fresh one for THIS tab,
+  // so we forward the new access token into setAuthToken just like login.
+  updateMe:       (patch) => api.patch('/auth/me', patch),
+  changePassword: async (currentPassword, newPassword) => {
+    const res = await api.post('/auth/me/password', { currentPassword, newPassword });
+    if (res.ok && res.data?.token) setAuthToken(res.data.token);
+    return res;
+  },
+
   // ── Email verification ────────────────────────────────────────────────
   // resendVerifyEmail requires the user to be signed in (the server uses
   // req.user). confirmVerifyEmail is public — anyone with the token can use it.

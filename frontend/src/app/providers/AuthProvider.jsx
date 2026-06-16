@@ -194,6 +194,21 @@ export function AuthProvider({ children }) {
     setSession(sessionFromUser(user));
   }, []);
 
+  /**
+   * updateUser(user) — merge a freshly-returned user object into the
+   * current session WITHOUT touching `signedInAt`. Used after profile
+   * edits (PATCH /auth/me, password change) so the navbar/avatar reflect
+   * the new name immediately instead of waiting for the next /auth/me.
+   */
+  const updateUser = useCallback((user) => {
+    if (!user) return;
+    setSession((prev) => {
+      const next = sessionFromUser(user);
+      if (prev?.signedInAt) next.signedInAt = prev.signedInAt;
+      return next;
+    });
+  }, []);
+
   const signOut = useCallback(async () => {
     // Tell the server to blacklist this access token + revoke the refresh
     // cookie. Failures are non-fatal — the user should still end up logged
@@ -215,8 +230,9 @@ export function AuthProvider({ children }) {
       isBootstrapping,
       signIn,
       signOut,
+      updateUser,
     }),
-    [session, isBootstrapping, signIn, signOut]
+    [session, isBootstrapping, signIn, signOut, updateUser]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

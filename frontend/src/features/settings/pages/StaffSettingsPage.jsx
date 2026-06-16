@@ -2,10 +2,15 @@ import { useState } from 'react';
 import { User, Palette, Bell, Accessibility, Languages, Shield, ChevronRight } from 'lucide-react';
 import StaffShell from '@/features/staff/components/StaffShell.jsx';
 import PageHeader from '@/shared/components/PageHeader.jsx';
-import { useAuth } from '@/app/providers/AuthProvider.jsx';
+import ProfileSection from '@/features/settings/components/ProfileSection.jsx';
 
 /**
  * StaffSettingsPage — personal preferences for the operator.
+ *
+ * "Profile" and "Security" sections are now backed by the real /auth/me
+ * + /auth/me/password endpoints (see ProfileSection). The other sections
+ * (Appearance, Notifications, Accessibility, Language) remain
+ * client-only previews until their respective backends land.
  */
 const SECTIONS = [
   { key: 'profile',       label: 'Profile',       icon: User },
@@ -17,7 +22,6 @@ const SECTIONS = [
 ];
 
 export default function StaffSettingsPage() {
-  const { session } = useAuth();
   const [active, setActive] = useState('profile');
 
   return (
@@ -59,15 +63,7 @@ export default function StaffSettingsPage() {
 
           {/* Panel */}
           <section className="rounded-3xl border border-white/[0.06] bg-white/[0.02] p-6 lg:col-span-9">
-            {active === 'profile' && (
-              <Block title="Profile" desc="How you appear to teammates and customers.">
-                <Field label="Display name"   value={session?.displayName || 'Jordan Lee'} />
-                <Field label="Role"           value="Staff operator" />
-                <Field label="Assigned desk"  value="Desk 2" />
-                <Field label="Employee ID"    value="FO-2148" />
-                <Field label="Email"          value="jordan@flowops.app" />
-              </Block>
-            )}
+            {active === 'profile' && <ProfileSection />}
             {active === 'appearance' && (
               <Block title="Appearance" desc="Theme and layout preferences.">
                 <Toggle label="Dark mode"            desc="Reduces eye strain during long shifts." enabled />
@@ -97,14 +93,7 @@ export default function StaffSettingsPage() {
                 <Select label="Time format"        options={['12-hour', '24-hour']} />
               </Block>
             )}
-            {active === 'security' && (
-              <Block title="Security" desc="Account safety and active sessions.">
-                <Field label="Password"     value="••••••••" action="Change" />
-                <Field label="Two-factor"   value="Enabled"   action="Manage" />
-                <Field label="Active sessions" value="2 devices" action="Review" />
-                <Field label="Last sign-in" value="Today · 08:54" />
-              </Block>
-            )}
+            {active === 'security' && <ProfileSection />}
           </section>
         </div>
       </div>
@@ -118,22 +107,6 @@ function Block({ title, desc, children }) {
       <h3 className="text-lg font-semibold text-white">{title}</h3>
       <p className="text-xs text-slate-400">{desc}</p>
       <div className="mt-5 space-y-2">{children}</div>
-    </div>
-  );
-}
-
-function Field({ label, value, action }) {
-  return (
-    <div className="flex items-center justify-between rounded-2xl border border-white/[0.05] bg-white/[0.02] px-4 py-3">
-      <div>
-        <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-500">{label}</p>
-        <p className="mt-0.5 text-sm font-medium text-white">{value}</p>
-      </div>
-      {action && (
-        <button className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-semibold text-slate-200 hover:bg-white/[0.08]">
-          {action}
-        </button>
-      )}
     </div>
   );
 }

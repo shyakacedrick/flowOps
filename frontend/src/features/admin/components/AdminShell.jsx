@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Bell, Search, Menu, Command, Globe2 } from 'lucide-react';
+import { Search, Menu, Command, Globe2 } from 'lucide-react';
 import AdminSidebar, { AdminMobileDrawer } from '@/features/admin/components/AdminSidebar.jsx';
-import { useAuth, ROLE_META } from '@/app/providers/AuthProvider.jsx';
+import UserMenu from '@/shared/components/UserMenu.jsx';
+import NotificationsMenu from '@/shared/components/NotificationsMenu.jsx';
+import { ROUTES } from '@/shared/constants/routes.js';
 
 /**
  * AdminLayout — page wrapper for every /admin/* route.
@@ -9,11 +11,6 @@ import { useAuth, ROLE_META } from '@/app/providers/AuthProvider.jsx';
  * profile) and a content region that respects the sidebar's collapsed state.
  */
 export default function AdminLayout({ children }) {
-  const { session } = useAuth();
-  const meta = ROLE_META[session?.role] || {};
-  const initials = (session?.displayName || 'AD')
-    .split(' ').map((s) => s[0]).slice(0, 2).join('');
-
   // Persist collapsed state across navigations.
   const [collapsed, setCollapsed] = useState(() => {
     if (typeof window === 'undefined') return false;
@@ -70,25 +67,12 @@ export default function AdminLayout({ children }) {
                   <Globe2 className="h-3.5 w-3.5 text-violet-300" />
                   Region · US-East
                 </button>
-                <button className="relative grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-white/10 text-slate-300 hover:bg-white/[0.04]">
-                  <Bell className="h-4 w-4" />
-                  <span className="absolute top-1.5 right-1.5 grid h-4 min-w-[16px] place-items-center rounded-full bg-violet-500 px-1 text-[9px] font-bold text-white ring-2 ring-[#0B1120]">
-                    7
-                  </span>
-                </button>
-                <div className="flex shrink-0 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-2 py-1.5">
-                  <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-violet-500 via-cyan-400 to-blue-500 text-xs font-bold text-slate-900">
-                    {initials}
-                  </span>
-                  <div className="hidden min-w-0 text-right sm:block">
-                    <p className="truncate text-xs font-semibold leading-tight text-white">
-                      {session?.displayName || 'Admin'}
-                    </p>
-                    <p className="truncate text-[10px] leading-tight text-violet-300/80">
-                      {meta.label || 'Platform Admin'}
-                    </p>
-                  </div>
-                </div>
+                <NotificationsMenu seeAllPath={ROUTES.admin.auditLogs} accent="violet" />
+                <UserMenu
+                  settingsPath={ROUTES.admin.settings}
+                  gradient="from-violet-500 via-cyan-400 to-blue-500"
+                  nameTone="text-violet-300/80"
+                />
               </div>
             </div>
           </header>

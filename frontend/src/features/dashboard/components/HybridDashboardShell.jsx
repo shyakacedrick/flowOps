@@ -12,7 +12,6 @@ import {
   Settings,
   LogOut,
   Search,
-  Bell,
   Zap,
   Menu,
   X,
@@ -22,6 +21,9 @@ import {
 } from 'lucide-react';
 import { useAuth, ROLE_META } from '@/app/providers/AuthProvider.jsx';
 import { ease } from '@/animations/motion.js';
+import UserMenu from '@/shared/components/UserMenu.jsx';
+import NotificationsMenu from '@/shared/components/NotificationsMenu.jsx';
+import { ROUTES } from '@/shared/constants/routes.js';
 
 /**
  * HybridDashboardShell — premium enterprise dashboard shell.
@@ -70,9 +72,6 @@ export default function HybridDashboardShell({
 
   const activeKey =
     NAV.find((n) => location.pathname.startsWith(n.to))?.key || 'dashboard';
-
-  const initials = (session?.displayName || 'FO')
-    .split(' ').map((s) => s[0]).slice(0, 2).join('');
 
   const handleSignOut = () => {
     signOut();
@@ -124,7 +123,6 @@ export default function HybridDashboardShell({
           <TopBar
             session={session}
             meta={meta}
-            initials={initials}
             onMenu={() => setMobileOpen(true)}
           />
 
@@ -312,7 +310,7 @@ function SidebarFooter({ onSignOut, collapsed = false, onToggleCollapsed }) {
   );
 }
 
-function TopBar({ session, meta, initials, onMenu }) {
+function TopBar({ session, meta, onMenu }) {
   return (
     <header className="relative flex items-center justify-between gap-3 px-4 py-5 sm:gap-4 sm:px-6 lg:px-10">
       <div className="flex min-w-0 flex-1 items-center gap-3">
@@ -342,21 +340,8 @@ function TopBar({ session, meta, initials, onMenu }) {
             className="w-full rounded-xl border border-white/10 bg-white/[0.04] py-2 pl-9 pr-3 text-sm text-slate-200 placeholder:text-slate-500 backdrop-blur transition-colors focus:border-cyan-400/40 focus:outline-none"
           />
         </div>
-        <button className="relative grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-white/10 text-slate-300 hover:bg-white/[0.04]">
-          <Bell className="h-4 w-4" />
-          <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-cyan-400 ring-2 ring-[#0B1120]" />
-        </button>
-        <div className="flex shrink-0 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-2 py-1.5">
-          <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-cyan-400 to-blue-500 text-xs font-bold text-slate-900">
-            {initials}
-          </span>
-          <div className="hidden min-w-0 text-right sm:block">
-            <p className="truncate text-xs font-semibold leading-tight text-white">
-              {session?.displayName || 'Operator'}
-            </p>
-            <p className="truncate text-[10px] leading-tight text-slate-500">{meta.label || 'Owner'}</p>
-          </div>
-        </div>
+        <NotificationsMenu seeAllPath={ROUTES.owner.customerFeed} accent="cyan" />
+        <UserMenu settingsPath={ROUTES.owner.settings} />
       </div>
     </header>
   );

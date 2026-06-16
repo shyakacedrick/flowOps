@@ -39,7 +39,7 @@ export const authenticateUser = asyncHandler(async (req, _res, next) => {
     }
   }
 
-  const user = await User.findById(decoded.sub);
+  const user = await User.findById(decoded.sub).select('+avatarUrl');
   if (!user) {
     throw ApiError.unauthorized('User no longer exists');
   }

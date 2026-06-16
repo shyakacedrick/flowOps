@@ -1,11 +1,14 @@
 import { useState } from 'react';
 import {
   Settings as SettingsIcon, Lock, Bell, Shield, Flag, KeyRound, ChevronRight, Plus,
+  User as UserIcon,
 } from 'lucide-react';
 import AdminLayout from '@/features/admin/components/AdminShell.jsx';
 import PageHeader from '@/shared/components/PageHeader.jsx';
+import ProfileSection from '@/features/settings/components/ProfileSection.jsx';
 
 const SECTIONS = [
+  { key: 'profile',       label: 'My profile',       icon: UserIcon },
   { key: 'platform',      label: 'Platform',         icon: SettingsIcon },
   { key: 'auth',          label: 'Authentication',   icon: Lock },
   { key: 'notifications', label: 'Notifications',    icon: Bell },
@@ -15,7 +18,7 @@ const SECTIONS = [
 ];
 
 export default function Settings() {
-  const [active, setActive] = useState('platform');
+  const [active, setActive] = useState('profile');
 
   return (
     <AdminLayout>
@@ -52,6 +55,7 @@ export default function Settings() {
           </aside>
 
           <section className="rounded-3xl border border-white/[0.06] bg-white/[0.02] p-6 lg:col-span-9">
+            {active === 'profile' && <ProfileSection />}
             {active === 'platform' && (
               <Block title="Platform settings" desc="Global defaults applied to every workspace.">
                 <Field label="Platform name"        value="FlowOps" />

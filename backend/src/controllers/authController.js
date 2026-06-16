@@ -201,7 +201,7 @@ export const login = asyncHandler(async (req, res) => {
   }
 
   const user = await User.findOne({ email: String(email).toLowerCase() }).select(
-    '+passwordHash'
+    '+passwordHash +avatarUrl'
   );
   if (!user) throw ApiError.unauthorized('Invalid credentials');
 
@@ -252,7 +252,7 @@ export const refresh = asyncHandler(async (req, res) => {
     throw ApiError.unauthorized('Refresh token has expired');
   }
 
-  const user = await User.findById(stored.userId);
+  const user = await User.findById(stored.userId).select('+avatarUrl');
   if (!user) {
     clearRefreshCookie(res);
     throw ApiError.unauthorized('User no longer exists');
@@ -318,6 +318,106 @@ export const logout = asyncHandler(async (req, res) => {
 export const me = asyncHandler(async (req, res) =>
   success(res, { user: req.user.toJSON() })
 );
+
+// ────────────────────────────────────────────────────────────────────────────
+//  PATCH /api/auth/me
+//  Lets the signed-in user update their own profile. Today only `name` and
+//  `avatarUrl` are editable from this endpoint — email changes deliberately
+//  require a separate verification flow (not yet implemented) so a
+//  compromised access token can't silently swap the recovery address.
+//
+//  Avatar contract:
+//    - string starting with `data:image/(png|jpeg|webp);base64,` → saved
+//    - `null` → clears the existing avatar
+//    - undefined / omitted → left untouched
+//  Hard size guard: 300_000 chars (≈225KB). Client compresses to ≤256px
+//  webp before upload (~30-80KB), so this is purely a defence-in-depth cap.
+// ────────────────────────────────────────────────────────────────────────────
+const AVATAR_DATA_URL_RE = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/;
+const AVATAR_MAX_CHARS = 300_000;
+
+export const updateMe = asyncHandler(async (req, res) => {
+  const { name, avatarUrl } = req.body || {};
+
+  // Need at least one editable field present.
+  if (name === undefined && avatarUrl === undefined) {
+    throw ApiError.badRequest('Provide at least one of: name, avatarUrl');
+  }
+
+  if (name !== undefined) {
+    if (typeof name !== 'string') {
+      throw ApiError.badRequest('name must be a string');
+    }
+    const trimmed = name.trim();
+    if (trimmed.length < 2 || trimmed.length > 100) {
+      throw ApiError.badRequest('Name must be between 2 and 100 characters');
+    }
+    req.user.name = trimmed;
+  }
+
+  if (avatarUrl !== undefined) {
+    if (avatarUrl === null || avatarUrl === '') {
+      req.user.avatarUrl = null;
+    } else {
+      if (typeof avatarUrl !== 'string') {
+        throw ApiError.badRequest('avatarUrl must be a string or null');
+      }
+      if (avatarUrl.length > AVATAR_MAX_CHARS) {
+        throw ApiError.badRequest('Avatar image is too large (max ~225KB)');
+      }
+      if (!AVATAR_DATA_URL_RE.test(avatarUrl)) {
+        throw ApiError.badRequest(
+          'avatarUrl must be a data:image/(png|jpeg|webp);base64 URL'
+        );
+      }
+      req.user.avatarUrl = avatarUrl;
+    }
+  }
+
+  await req.user.save();
+
+  return success(res, { user: req.user.toJSON() });
+});
+
+// ────────────────────────────────────────────────────────────────────────────
+//  POST /api/auth/me/password
+//  Lets the signed-in user change their password. Requires the current
+//  password (so a stolen access token alone can't lock the real user out)
+//  and revokes every other refresh token to log the user out of any other
+//  sessions / devices.
+// ────────────────────────────────────────────────────────────────────────────
+export const changeMyPassword = asyncHandler(async (req, res) => {
+  const { currentPassword, newPassword } = req.body || {};
+
+  if (!currentPassword || !newPassword) {
+    throw ApiError.badRequest('currentPassword and newPassword are required');
+  }
+  if (currentPassword === newPassword) {
+    throw ApiError.badRequest('New password must be different from the current one');
+  }
+  validatePassword(newPassword);
+
+  // Re-load the user WITH passwordHash; req.user excludes it via the schema.
+  const user = await User.findById(req.user._id).select('+passwordHash +avatarUrl');
+  if (!user) throw ApiError.unauthorized('Session is no longer valid');
+
+  const valid = await user.comparePassword(currentPassword);
+  if (!valid) throw ApiError.unauthorized('Current password is incorrect');
+
+  user.passwordHash = await User.hashPassword(newPassword);
+  await user.save();
+
+  // Kill every other session: revoke all refresh tokens, then re-issue a
+  // fresh one for the CURRENT request so this tab stays signed in.
+  await RefreshToken.updateMany(
+    { userId: user._id, revokedAt: null },
+    { $set: { revokedAt: new Date() } }
+  );
+  const newRaw = await issueRefreshToken(user, req);
+  setRefreshCookie(res, newRaw);
+
+  return success(res, { user: user.toJSON(), token: signAccessToken(user) });
+});
 
 // ════════════════════════════════════════════════════════════════════════════
 //  Email verification & password reset

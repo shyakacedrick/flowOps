@@ -61,6 +61,20 @@ const userSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    // Profile photo, stored inline as a base64 data URL (data:image/...).
+    // We keep this `select: false` so list/admin queries don't drag 100s of
+    // KB of image data into every response. Endpoints that actually need
+    // it (auth middleware, login, refresh, updateMe, changeMyPassword)
+    // explicitly opt in via `.select('+avatarUrl')`.
+    //
+    // Hard cap of 300_000 chars (~225KB raw) is a defence-in-depth limit;
+    // the client compresses to ≤256px webp before upload (~30-80KB).
+    avatarUrl: {
+      type: String,
+      default: null,
+      select: false,
+      maxlength: [300000, 'Avatar image is too large'],
+    },
   },
   {
     timestamps: true,

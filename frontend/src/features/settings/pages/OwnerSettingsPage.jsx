@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Building2, Bell, ShieldCheck, Users, MapPin, ListChecks, Save, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Building2, Bell, ShieldCheck, Users, MapPin, ListChecks, Save, Loader2, CheckCircle2, AlertCircle, User as UserIcon } from 'lucide-react';
 import HybridDashboardShell from '@/features/dashboard/components/HybridDashboardShell.jsx';
 import PageHeader from '@/shared/components/PageHeader.jsx';
 import { useAuth } from '@/app/providers/AuthProvider.jsx';
 import { useToast } from '@/shared/components/ToastProvider.jsx';
 import organizationApi from '@/services/organizationApi.js';
 import InvitesPanel from '@/features/settings/components/InvitesPanel.jsx';
+import ProfileSection from '@/features/settings/components/ProfileSection.jsx';
 
 /**
  * SettingsPage — "How do I configure FlowOps?"
@@ -13,15 +14,16 @@ import InvitesPanel from '@/features/settings/components/InvitesPanel.jsx';
  * Only sections that actually persist to the backend are listed here.
  * Notifications, Queue rules, Account, and Branches are intentionally
  * hidden until their respective backends land (Phase 11+). Better to ship
- * 2 working sections than 6 sections where 4 of them silently drop edits.
+ * a handful of working sections than many where most silently drop edits.
  */
 const SECTIONS = [
+  { key: 'profile',      label: 'My profile',    icon: UserIcon },
   { key: 'business',     label: 'Business',      icon: Building2 },
   { key: 'roles',        label: 'Team & invites',icon: Users },
 ];
 
 export default function SettingsPage() {
-  const [section, setSection] = useState('business');
+  const [section, setSection] = useState('profile');
 
   return (
     <HybridDashboardShell>
@@ -58,6 +60,7 @@ export default function SettingsPage() {
           </aside>
 
           <main className="space-y-5 lg:col-span-9">
+            {section === 'profile'  && <ProfileSection />}
             {section === 'business' && <BusinessSection />}
             {section === 'roles'    && <RolesSection />}
           </main>
