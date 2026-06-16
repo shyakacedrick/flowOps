@@ -15,6 +15,7 @@ import { BrowserRouter } from 'react-router-dom';
 import ErrorBoundary from '@/shared/components/ErrorBoundary.jsx';
 import ConfirmProvider from '@/shared/components/ConfirmProvider.jsx';
 import ToastProvider from '@/shared/components/ToastProvider.jsx';
+import WakingSplash from '@/shared/components/WakingSplash.jsx';
 import { AuthProvider } from '@/app/providers/AuthProvider.jsx';
 import { ThemeProvider } from '@/app/providers/ThemeProvider.jsx';
 import { SimulationProvider } from '@/engine/SimulationProvider.jsx';
@@ -23,6 +24,13 @@ import AppRouter from '@/app/router/index.jsx';
 export default function App() {
   return (
     <ErrorBoundary>
+      {/*
+        WakingSplash renders a full-screen "we're starting the API" overlay
+        ONLY when the first network request stalls past ~1.5 s. Sits at the
+        top of the tree so it covers every route, including the public
+        landing page, during a Render free-tier cold start.
+      */}
+      <WakingSplash />
       <AuthProvider>
         <ThemeProvider>
           {/*
