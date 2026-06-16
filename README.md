@@ -16,7 +16,7 @@
 [![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=white)](https://react.dev)
 [![Vite](https://img.shields.io/badge/Vite-5-646CFF?logo=vite&logoColor=white)](https://vitejs.dev)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-3-38BDF8?logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
-[![Framer Motion](https://img.shields.io/badge/Framer_Motion-11-EC4899?logo=framer&logoColor=white)](https://www.framer.com/motion/)
+[![Framer Motion](https://img.shields.io/badge/Framer_Motion-12-EC4899?logo=framer&logoColor=white)](https://www.framer.com/motion/)
 [![Node.js](https://img.shields.io/badge/Node-22-339933?logo=node.js&logoColor=white)](https://nodejs.org)
 [![Express](https://img.shields.io/badge/Express-5-000000?logo=express&logoColor=white)](https://expressjs.com)
 [![MongoDB](https://img.shields.io/badge/MongoDB-Atlas-47A248?logo=mongodb&logoColor=white)](https://www.mongodb.com/atlas)
@@ -118,7 +118,7 @@ What's genuinely interesting under the hood:
 | Layer | Choice | Why |
 |---|---|---|
 | **UI** | React 18 + Vite 5 + Tailwind 3 | Fast dev loop, opinionated design system |
-| **Animation** | Framer Motion 11 | Smooth, interruptible micro-interactions |
+| **Animation** | Framer Motion 12 | Smooth, interruptible micro-interactions |
 | **Routing** | React Router 6 (lazy + role-aware) | Code-split per role; no admin code in customer bundles |
 | **State** | Local + Context (`AuthProvider`, `FlowOpsProvider`) | Small surface; no Redux needed yet |
 | **API** | Express 5 + Node 22 | Modern async, native fetch, ESM |
@@ -231,7 +231,7 @@ npm test
 
 - **Auth** — signup edge cases, refresh-token rotation, role enforcement
 - **Queues** — CRUD, org-scoping, optimistic concurrency
-- **Tickets** — state machine (waiting → called → served / abandoned)
+- **Tickets** — state machine (waiting → serving → served / skipped / cancelled)
 - **Activities** — audit-log side effects fire exactly once per business event
 
 CI runs the same suite on every push to `main` via `.github/workflows/ci.yml`.
