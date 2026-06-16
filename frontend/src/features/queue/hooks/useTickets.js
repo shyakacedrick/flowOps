@@ -1,9 +1,12 @@
 // ============================================================================
 //  useTickets — live tickets for a single queue
 // ----------------------------------------------------------------------------
-//  Calls GET /api/tickets?queueId=... and polls in the background (visibility-
-//  aware). Mirrors the optimistic-mutator pattern from useQueues so consuming
-//  components can update locally and reconcile via the next poll.
+//  Calls GET /api/tickets?queueId=... once on mount, then receives live
+//  updates via SSE (see useOrgEventStream below). Polling is OFF by default;
+//  pass `pollMs: <number>` only as a fallback when SSE is known to be
+//  blocked. Mirrors the optimistic-mutator pattern from useQueues so
+//  consuming components can update locally and reconcile via the next
+//  refresh / SSE event.
 //
 //  Returns:
 //    { tickets, status, error, refresh,
@@ -15,7 +18,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import ticketApi from '@/services/ticketApi.js';
 import { useOrgEventStream } from '@/shared/hooks/useEventStream.js';
 
-export function useTickets(queueId, { pollMs = 4000, status } = {}) {
+export function useTickets(queueId, { pollMs = 0, status } = {}) {
   const [tickets, setTickets] = useState([]);
   const [fetchStatus, setFetchStatus] = useState('idle');
   const [error, setError] = useState(null);

@@ -103,7 +103,15 @@ export async function sendMail({ to, subject, html, text }) {
 
   // ── Console fallback (dev) ──────────────────────────────────────────────
   // Shown in a tidy box so it's easy to spot in pino's mixed stream.
+  // We print the full text body (indented) so links inside it — invite
+  // URLs, password-reset URLs, etc. — survive verbatim in Render logs.
   const banner = '─'.repeat(60);
+  const indentedText = text
+    ? text
+        .split('\n')
+        .map((line) => `    ${line}`)
+        .join('\n')
+    : '';
   // eslint-disable-next-line no-console
   console.log(
     [
@@ -112,7 +120,7 @@ export async function sendMail({ to, subject, html, text }) {
       `  to:      ${to}`,
       `  from:    ${env.mailFrom}`,
       `  subject: ${subject}`,
-      text ? `  text:    ${text.split('\n')[0].slice(0, 120)}…` : '',
+      indentedText ? `  text:\n${indentedText}` : '',
       banner,
     ]
       .filter(Boolean)

@@ -9,13 +9,14 @@
     "dev": "nodemon src/server.js",
     "test": "vitest run",
     "test:watch": "vitest",
-    "check:env": "node scripts/check-env.js"
+    "check:env": "node scripts/check-env.js",
+    "seed:admin": "node scripts/seed-admin.js"
   },
   "keywords": [
     "flowops",
     "saas",
     "queue-management",
-    "express",
+    "express",    
     "mongodb"
   ],
   "author": "",

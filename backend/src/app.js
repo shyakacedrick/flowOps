@@ -65,7 +65,19 @@ const logger = pino({
   },
   transport:
     env.isDev && env.logLevel !== 'silent'
-      ? { target: 'pino-pretty', options: { colorize: true, translateTime: 'HH:MM:ss' } }
+      ? {
+          target: 'pino-pretty',
+          options: {
+            colorize: true,
+            translateTime: 'HH:MM:ss',
+            // In dev we don't need the verbose req/res object dumps for every
+            // healthy request — the one-line summary from `customSuccessMessage`
+            // below is enough. Errors still get full context because the error
+            // block isn't ignored.
+            ignore: 'pid,hostname,req,res,reqId,responseTime',
+            messageFormat: '{msg}',
+          },
+        }
       : undefined,
 });
 app.use(
@@ -76,8 +88,24 @@ app.use(
       if (res.statusCode >= 400) return 'warn';
       return 'info';
     },
-    // Don't log health checks — they spam.
-    autoLogging: { ignore: (req) => req.url === '/health' },
+    // Replace pino-http's default "request completed" with a single readable
+    // line per request: `GET /api/queues -> 304 (931ms)`. We use
+    // `originalUrl` (not `url`) so the full path including mount prefix
+    // shows up — otherwise everything under `/api/queues` logs as just `/`.
+    // ASCII arrow (not →) so Windows consoles render it without garbling.
+    customSuccessMessage: (req, res, responseTime) =>
+      `${req.method} ${req.originalUrl} -> ${res.statusCode} (${Math.round(responseTime)}ms)`,
+    customErrorMessage: (req, res, err) =>
+      `${req.method} ${req.originalUrl} -> ${res.statusCode} ${err?.message || ''}`.trim(),
+    // Don't log health checks or SSE streams — they spam. SSE in particular
+    // is a long-lived connection that always ends with `request aborted`
+    // when the client disconnects, which is normal lifecycle, not an error.
+    autoLogging: {
+      ignore: (req) =>
+        req.url === '/health' ||
+        req.url.startsWith('/api/events/') ||
+        req.url.startsWith('/api/public/events/'),
+    },
   })
 );
 

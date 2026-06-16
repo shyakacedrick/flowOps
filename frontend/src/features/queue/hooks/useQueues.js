@@ -11,16 +11,19 @@
 //    ready  → fetch returned a queue array (possibly empty)
 //    error  → fetch failed (network / 4xx / 5xx)
 //
-//  Polling: when `pollMs` is set (default 5000), the hook re-fetches in the
-//  background while the document is visible. Polled fetches are silent — they
-//  do NOT flip status to 'loading' — so the UI never flashes a spinner.
+//  Polling: OFF by default. Live updates flow through SSE (see below). Pass
+//  `pollMs: <number>` only as a fallback for environments where the SSE
+//  channel is known to be blocked (some corporate proxies strip text/event-
+//  stream). With multiple consumers of this hook on the same page, enabling
+//  polling per-instance multiplies requests — prefer leaving it off and
+//  trusting the live channel.
 // ============================================================================
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import queueApi from '@/services/queueApi.js';
 import { useOrgEventStream } from '@/shared/hooks/useEventStream.js';
 
-export function useQueues(params, { pollMs = 5000 } = {}) {
+export function useQueues(params, { pollMs = 0 } = {}) {
   const [queues, setQueues] = useState([]);
   const [status, setStatus] = useState('idle');
   const [error, setError] = useState(null);
