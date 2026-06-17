@@ -25,12 +25,6 @@ const TAGS = {
   emerald: 'bg-emerald-500/10 text-emerald-300 ring-emerald-400/20',
 };
 
-const SEED_ROWS = [
-  { id: -1, label: 'John Doe checked in via QR code',   sub: 'Ticket A-099', name: 'John Doe',     tag: 'Clinic Queue',  tagTone: 'sky',    avatarTone: 'sky',    ts: Date.now() - 60_000 },
-  { id: -2, label: 'Sarah Jenkins called to Counter 2', sub: 'Ticket A-098', name: 'Sarah Jenkins',tag: 'Counter Alert', tagTone: 'violet', avatarTone: 'violet', ts: Date.now() - 90_000 },
-  { id: -3, label: 'David Smith marked as no-show',     sub: 'Ticket A-097', name: 'David Smith',  tag: 'System Auto',   tagTone: 'rose',   avatarTone: 'rose',   ts: Date.now() - 180_000 },
-];
-
 export default function LiveActivityFeed() {
   const liveRows = useEventLog();
   const [, setTick] = useState(0);
@@ -40,7 +34,7 @@ export default function LiveActivityFeed() {
     return () => clearInterval(id);
   }, []);
 
-  const rows = liveRows.length >= 3 ? liveRows : [...liveRows, ...SEED_ROWS].slice(0, 15);
+  const rows = liveRows.slice(0, 15);
 
   return (
     <section className="overflow-hidden rounded-3xl bg-white/[0.03] shadow-sm ring-1 ring-white/[0.06]">
@@ -77,6 +71,11 @@ export default function LiveActivityFeed() {
       </div>
 
       <ul className="max-h-[480px] divide-y divide-white/[0.05] overflow-y-auto">
+        {rows.length === 0 && (
+          <li className="px-5 py-10 text-center text-xs text-slate-500 sm:px-6">
+            Waiting for live customer activity. New events will appear here as they happen.
+          </li>
+        )}
         <AnimatePresence initial={false}>
           {rows.map((r) => (
             <motion.li

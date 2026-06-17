@@ -1,24 +1,17 @@
 // ============================================================================
-//  useSystemPhase
+//  useSystemPhase — narrative phase for staged dashboard reveals
 // ----------------------------------------------------------------------------
-//  Drives the FlowOps product-story flow. Returns the current narrative
-//  phase the system is in, derived purely from live engine signals:
+//  Previously derived from the simulation engine. Now derives from the real
+//  org's lifetime ticket counts via the analytics summary:
 //
-//    initializing → activating → active → mature
-//
-//  Phase semantics
-//  ---------------
-//    initializing — engine just booted, no activity yet
-//    activating   — first customers arriving, system warming up
-//    active       — sustained queue + service flow
-//    mature       — enough cumulative service to evidence stable operations
-//
-//  These phases gate the staged reveals across dashboards (banners, KPI
-//  fade-ins, insight unlocks). Pure read — never mutates engine state.
+//    initializing — no tickets ever joined
+//    activating   — first tickets joined, none served yet
+//    active       — sustained join + serve flow
+//    mature       — ≥ 8 tickets served (stable operations evidence)
 // ============================================================================
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useFlowOps } from '@/engine/FlowOpsProvider.jsx';
+import useAnalyticsSummary from '@/features/analytics/hooks/useAnalyticsSummary.js';
 
 export const PHASES = {
   INITIALIZING: 'initializing',
@@ -50,23 +43,19 @@ const PHASE_META = {
   },
 };
 
-function derivePhase({ simTime, totalArrivals, totalServed }) {
-  if (totalArrivals === 0 && simTime < 4)  return PHASES.INITIALIZING;
-  if (totalArrivals === 0)                 return PHASES.INITIALIZING;
-  if (totalServed >= 8)                    return PHASES.MATURE;
-  if (totalArrivals >= 1)                  return totalServed >= 1 ? PHASES.ACTIVE : PHASES.ACTIVATING;
+function derivePhase({ joined, served }) {
+  if (!joined)        return PHASES.INITIALIZING;
+  if (served >= 8)    return PHASES.MATURE;
+  if (served >= 1)    return PHASES.ACTIVE;
   return PHASES.ACTIVATING;
 }
 
 export function useSystemPhase() {
-  const state = useFlowOps();
-  const phase = derivePhase({
-    simTime:        state.simTime,
-    totalArrivals:  state.analytics.totalArrivals,
-    totalServed:    state.analytics.totalServed,
-  });
+  const { summary } = useAnalyticsSummary({ range: '30d', pollMs: 60_000 });
+  const joined = summary?.totals?.joined ?? 0;
+  const served = summary?.totals?.served ?? 0;
+  const phase  = derivePhase({ joined, served });
 
-  // Track when each phase was first reached — drives staged reveals.
   const [enteredAt, setEnteredAt] = useState(() => ({ [phase]: Date.now() }));
   const last = useRef(phase);
   useEffect(() => {
@@ -80,10 +69,11 @@ export function useSystemPhase() {
     phase,
     meta: PHASE_META[phase],
     enteredAt,
-    /** Has the system reached at least `target` phase? */
     hasReached(target) {
       const order = [PHASES.INITIALIZING, PHASES.ACTIVATING, PHASES.ACTIVE, PHASES.MATURE];
       return order.indexOf(phase) >= order.indexOf(target);
     },
   }), [phase, enteredAt]);
 }
+
+export default useSystemPhase;

@@ -23,6 +23,7 @@ import { useAuth, ROLE_META } from '@/app/providers/AuthProvider.jsx';
 import { ease } from '@/animations/motion.js';
 import UserMenu from '@/shared/components/UserMenu.jsx';
 import NotificationsMenu from '@/shared/components/NotificationsMenu.jsx';
+import { pathForActivity } from '@/shared/utils/pathForActivity.js';
 import { ROUTES } from '@/shared/constants/routes.js';
 
 /**
@@ -340,7 +341,12 @@ function TopBar({ session, meta, onMenu }) {
             className="w-full rounded-xl border border-white/10 bg-white/[0.04] py-2 pl-9 pr-3 text-sm text-slate-200 placeholder:text-slate-500 backdrop-blur transition-colors focus:border-cyan-400/40 focus:outline-none"
           />
         </div>
-        <NotificationsMenu seeAllPath={ROUTES.owner.customerFeed} accent="cyan" />
+        <NotificationsMenu
+          seeAllPath={ROUTES.owner.customerFeed}
+          seeAllLabel="See customer feed →"
+          accent="cyan"
+          getItemPath={(it) => pathForActivity(it, 'business_owner')}
+        />
         <UserMenu settingsPath={ROUTES.owner.settings} />
       </div>
     </header>

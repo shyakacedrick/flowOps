@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react';
 import { Activity, Filter, ArrowDownToLine, RefreshCw } from 'lucide-react';
 import StaffShell from '@/features/staff/components/StaffShell.jsx';
 import PageHeader, { StatCard } from '@/shared/components/PageHeader.jsx';
-import BackendActivityTimeline from '@/features/customer-feed/components/BackendActivityTimeline.jsx';
 import { useEventLog } from '@/features/customer-feed/hooks/useEventLog.js';
 
 /**
@@ -23,12 +22,11 @@ export default function ActivityFeedPage() {
   const [filter, setFilter] = useState('all');
 
   const events = useMemo(() => {
-    const list = log.length ? log : SEED;
-    return list.filter((e) => {
+    return log.filter((e) => {
       if (filter === 'all') return true;
       if (filter === 'joins')  return e.tag === 'Queue join';
       if (filter === 'served') return e.tag === 'Resolved';
-      if (filter === 'system') return ['Heartbeat', 'System auto', 'System'].includes(e.tag);
+      if (filter === 'system') return ['Sign-in', 'Queue', 'Queue update', 'Org created', 'System auto', 'New user'].includes(e.tag);
       return true;
     });
   }, [log, filter]);
@@ -59,9 +57,6 @@ export default function ActivityFeedPage() {
           <StatCard label="Resolved"     value={count(log, 'Resolved')}                delta="Served"          tone="emerald" />
           <StatCard label="Auto skips"   value={count(log, 'System auto')}             delta="No-shows"        tone="amber" />
         </div>
-
-        {/* Backend-connected log — every event hitting MongoDB shows up here */}
-        <BackendActivityTimeline />
 
         <section className="rounded-3xl border border-white/[0.06] bg-white/[0.02] p-5">
           <div className="flex items-center justify-between">
@@ -118,17 +113,10 @@ export default function ActivityFeedPage() {
 }
 
 function count(list, tag) {
-  return list.filter((e) => e.tag === tag).length || (tag === 'Resolved' ? 18 : tag === 'Queue join' ? 22 : 4);
+  return list.filter((e) => e.tag === tag).length;
 }
 function formatTs(ts) {
   if (!ts) return '—';
   const d = new Date(ts);
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
 }
-
-const SEED = [
-  { id: 's1', ts: Date.now() - 60000,   label: 'Maya joined the queue',       sub: 'Ticket A-104',   tag: 'Queue join',  tagTone: 'sky' },
-  { id: 's2', ts: Date.now() - 180000,  label: 'Leo served at counter',       sub: 'Ticket A-103 · completed', tag: 'Resolved', tagTone: 'emerald' },
-  { id: 's3', ts: Date.now() - 360000,  label: 'Sana marked as no-show',      sub: 'Ticket A-102 · re-queued', tag: 'System auto', tagTone: 'rose' },
-  { id: 's4', ts: Date.now() - 540000,  label: 'Quiet period · no arrivals',  sub: 'Operations stable',        tag: 'Heartbeat', tagTone: 'amber' },
-];

@@ -17,6 +17,9 @@
 [build.environment]
   # Node version Netlify will use for the build. Match local dev.
   NODE_VERSION = "22"
+  # Enables the top "Demo mode — data resets nightly" banner on the showcase
+  # deploy. Leave unset on review/preview branches that aren't the demo.
+  VITE_DEMO_MODE = "true"
 
 # SPA fallback — React Router owns every path that isn't a real file.
 # Without this, a hard refresh on /admin/queues returns 404.

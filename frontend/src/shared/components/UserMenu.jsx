@@ -25,6 +25,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LogOut, Settings as SettingsIcon, Mail, ShieldCheck, ChevronDown } from 'lucide-react';
 import { useAuth, ROLE_META } from '@/app/providers/AuthProvider.jsx';
+import { useToast } from '@/shared/components/ToastProvider.jsx';
 import Avatar from '@/shared/components/Avatar.jsx';
 
 export default function UserMenu({
@@ -36,6 +37,7 @@ export default function UserMenu({
   const { session, signOut } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const toast = useToast();
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef(null);
 
@@ -73,6 +75,7 @@ export default function UserMenu({
   const handleSignOut = async () => {
     setOpen(false);
     await signOut();
+    toast.success('Signed out');
     navigate('/login', { replace: true });
   };
 
@@ -85,6 +88,7 @@ export default function UserMenu({
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="menu"
         aria-expanded={open}
+        aria-label={`Account menu for ${displayName}`}
         className={`flex shrink-0 items-center gap-2 rounded-xl border bg-white/[0.04] px-2 py-1.5 transition-colors hover:bg-white/[0.08] ${
           open ? 'border-cyan-400/40' : 'border-white/10'
         }`}
@@ -118,7 +122,7 @@ export default function UserMenu({
             exit={{    opacity: 0, y: -6, scale: 0.98 }}
             transition={{ duration: 0.14, ease: 'easeOut' }}
             role="menu"
-            className={`absolute ${panelSide} z-50 mt-2 w-72 origin-top overflow-hidden rounded-2xl border border-white/10 bg-[#0B1120]/95 shadow-[0_24px_60px_-20px_rgba(2,8,23,0.9)] backdrop-blur-xl`}
+            className={`absolute ${panelSide} z-50 mt-2 w-72 max-w-[calc(100vw-1rem)] origin-top overflow-hidden rounded-2xl border border-white/10 bg-[#0B1120]/95 shadow-[0_24px_60px_-20px_rgba(2,8,23,0.9)] backdrop-blur-xl`}
           >
             {/* ── Identity header ───────────────────────────────────── */}
             <div className="flex items-center gap-3 border-b border-white/[0.06] px-4 py-3.5">

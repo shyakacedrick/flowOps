@@ -1,12 +1,20 @@
-import { useMemo, useState } from 'react';
-import { Search, Filter, Users, Clock, CheckCircle2, XCircle } from 'lucide-react';
+// ============================================================================
+//  CustomersPage — full org-wide ticket roster, wired to real backend data
+// ----------------------------------------------------------------------------
+//  Aggregates every ticket across every queue the operator can see, then
+//  supports search + status filtering. No simulation data, no hardcoded
+//  customer names. Polls /api/tickets per queue at 30s and listens on the
+//  shared SSE bus for live mutations.
+// ============================================================================
+
+import { useEffect, useMemo, useState } from 'react';
+import { Search, Filter, Users, Clock, CheckCircle2, Loader2 } from 'lucide-react';
 import StaffShell from '@/features/staff/components/StaffShell.jsx';
 import PageHeader, { StatCard } from '@/shared/components/PageHeader.jsx';
-import { useSimulationSlice } from '@/engine/SimulationProvider.jsx';
+import useQueues from '@/features/queue/hooks/useQueues.js';
+import ticketApi from '@/services/ticketApi.js';
+import { useOrgEventStream } from '@/shared/hooks/useEventStream.js';
 
-/**
- * CustomersPage — searchable, filterable customer roster across statuses.
- */
 const STATUSES = ['all', 'waiting', 'serving', 'served', 'skipped', 'cancelled'];
 
 const STATUS_STYLES = {
@@ -17,39 +25,93 @@ const STATUS_STYLES = {
   cancelled: { dot: 'bg-rose-400',    text: 'text-rose-300',    ring: 'ring-rose-400/30',    bg: 'bg-rose-500/10' },
 };
 
-const HARDCODED_EXTRAS = [
-  { id: 'A-098', name: 'Priya Singh',  service: 'Account help',   status: 'served',    arrival: '09:14', desk: 'Desk 2' },
-  { id: 'A-097', name: 'Tom Becker',   service: 'New account',    status: 'skipped',   arrival: '09:08', desk: '—' },
-  { id: 'A-096', name: 'Layla Hassan', service: 'Withdrawal',     status: 'served',    arrival: '09:01', desk: 'Desk 2' },
-  { id: 'A-095', name: 'Diego Ortiz',  service: 'Loan inquiry',   status: 'cancelled', arrival: '08:52', desk: '—' },
-];
+const POLL_MS = 30_000;
 
 export default function CustomersPage() {
-  const queue       = useSimulationSlice((s) => s.queue);
-  const recent      = useSimulationSlice((s) => s.recent);
-  const currentSrv  = useSimulationSlice((s) => s.business.currentServing);
-
+  const { queues } = useQueues();
+  const [tickets, setTickets] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
   const [query, setQuery]   = useState('');
 
-  const rows = useMemo(() => {
-    const all = [
-      ...(currentSrv ? [{ ...currentSrv, status: 'serving', arrival: '—', desk: 'Desk 2' }] : []),
-      ...queue.map((c) => ({ ...c, status: 'waiting', arrival: '—', desk: '—' })),
-      ...recent.map((c) => ({ ...c, status: 'served', arrival: '—', desk: 'Desk 2' })),
-      ...HARDCODED_EXTRAS,
-    ];
-    return all.filter((r) => {
-      if (filter !== 'all' && r.status !== filter) return false;
-      if (query && !`${r.id} ${r.name}`.toLowerCase().includes(query.toLowerCase())) return false;
-      return true;
-    });
-  }, [queue, recent, currentSrv, filter, query]);
+  // Fetch tickets for every queue the operator can see and merge into one
+  // flat list. We re-run when the queue set changes.
+  useEffect(() => {
+    if (!queues.length) {
+      setTickets([]);
+      setLoading(false);
+      return undefined;
+    }
+    let cancelled = false;
+    const load = async () => {
+      setLoading(true);
+      const results = await Promise.all(
+        queues.map((q) => ticketApi.list({ queueId: q._id })),
+      );
+      if (cancelled) return;
+      const merged = results
+        .filter((r) => r.ok && Array.isArray(r.data))
+        .flatMap((r) => r.data);
+      setTickets(merged);
+      setLoading(false);
+    };
+    load();
+    const id = setInterval(() => {
+      if (document.visibilityState === 'visible') load();
+    }, POLL_MS);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [queues]);
 
-  const counts = useMemo(() => {
-    const base = { waiting: queue.length, serving: currentSrv ? 1 : 0, served: recent.length };
-    return base;
-  }, [queue, recent, currentSrv]);
+  // Live SSE updates: optimistic merge so the table stays responsive
+  // between polls.
+  const stream = useOrgEventStream();
+  useEffect(() => {
+    const off1 = stream.on('ticket:created', (t) => {
+      if (!t) return;
+      setTickets((prev) => (prev.some((x) => x._id === t._id) ? prev : [...prev, t]));
+    });
+    const off2 = stream.on('ticket:updated', (t) => {
+      if (!t) return;
+      setTickets((prev) => {
+        const idx = prev.findIndex((x) => x._id === t._id);
+        if (idx === -1) return [...prev, t];
+        const next = prev.slice();
+        next[idx] = t;
+        return next;
+      });
+    });
+    const off3 = stream.on('ticket:deleted', ({ _id } = {}) => {
+      if (!_id) return;
+      setTickets((prev) => prev.filter((x) => x._id !== _id));
+    });
+    return () => { off1(); off2(); off3(); };
+  }, [stream]);
+
+  const queueNameById = useMemo(() => {
+    const m = new Map();
+    queues.forEach((q) => m.set(q._id, q.name));
+    return m;
+  }, [queues]);
+
+  const rows = useMemo(() => {
+    return tickets
+      .filter((t) => !t.deletedAt)
+      .filter((t) => {
+        if (filter !== 'all' && t.status !== filter) return false;
+        if (query) {
+          const hay = `${t.ticketNumber} ${t.customerName}`.toLowerCase();
+          if (!hay.includes(query.toLowerCase())) return false;
+        }
+        return true;
+      })
+      .sort((a, b) => new Date(b.joinedAt) - new Date(a.joinedAt));
+  }, [tickets, filter, query]);
+
+  const counts = useMemo(() => ({
+    waiting: tickets.filter((t) => t.status === 'waiting').length,
+    serving: tickets.filter((t) => t.status === 'serving').length,
+    served:  tickets.filter((t) => t.status === 'served').length,
+  }), [tickets]);
 
   return (
     <StaffShell>
@@ -57,15 +119,15 @@ export default function CustomersPage() {
         <PageHeader
           eyebrow="Roster"
           title="Customers"
-          subtitle="Every customer touched by your shift — searchable, filterable, complete."
+          subtitle="Every customer touched by your workspace — searchable, filterable, live."
           crumbs={[{ label: 'Staff', to: '/staff/dashboard' }, { label: 'Customers' }]}
         />
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <StatCard label="Total today" value={rows.length}        delta="All statuses"  tone="cyan"    icon={Users} />
-          <StatCard label="Serving"     value={counts.serving}      delta="At your desk"  tone="violet" />
-          <StatCard label="Waiting"     value={counts.waiting}      delta="In line"       tone="amber"   icon={Clock} />
-          <StatCard label="Served"      value={counts.served}       delta="Completed"     tone="emerald" icon={CheckCircle2} />
+          <StatCard label="Total"   value={tickets.length}   delta="All statuses"  tone="cyan"    icon={Users} />
+          <StatCard label="Serving" value={counts.serving}   delta="At a desk"     tone="violet" />
+          <StatCard label="Waiting" value={counts.waiting}   delta="In line"       tone="amber"   icon={Clock} />
+          <StatCard label="Served"  value={counts.served}    delta="Completed"     tone="emerald" icon={CheckCircle2} />
         </div>
 
         <section className="rounded-3xl border border-white/[0.06] bg-white/[0.02] p-5">
@@ -74,7 +136,7 @@ export default function CustomersPage() {
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
               <input
                 value={query} onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search by name or ticket"
+                placeholder="Search by name or ticket number"
                 className="w-full rounded-xl border border-white/10 bg-white/[0.04] py-2 pl-9 pr-3 text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-cyan-400/40"
               />
             </div>
@@ -100,41 +162,46 @@ export default function CustomersPage() {
                 <tr className="border-b border-white/[0.05]">
                   <th className="px-3 py-2.5 text-left">Customer</th>
                   <th className="px-3 py-2.5 text-left">Ticket</th>
-                  <th className="px-3 py-2.5 text-left">Service</th>
+                  <th className="px-3 py-2.5 text-left">Queue</th>
                   <th className="px-3 py-2.5 text-left">Status</th>
-                  <th className="px-3 py-2.5 text-left">Arrival</th>
-                  <th className="px-3 py-2.5 text-left">Desk</th>
+                  <th className="px-3 py-2.5 text-left">Joined</th>
                 </tr>
               </thead>
               <tbody>
-                {rows.length === 0 ? (
+                {loading ? (
                   <tr>
-                    <td colSpan={6} className="px-3 py-10 text-center text-sm text-slate-500">
+                    <td colSpan={5} className="px-3 py-10 text-center text-sm text-slate-500">
+                      <Loader2 className="mx-auto h-4 w-4 animate-spin" />
+                      <p className="mt-2">Loading customers…</p>
+                    </td>
+                  </tr>
+                ) : rows.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-3 py-10 text-center text-sm text-slate-500">
                       No customers match the current filter.
                     </td>
                   </tr>
-                ) : rows.map((r) => {
-                  const style = STATUS_STYLES[r.status] || STATUS_STYLES.waiting;
+                ) : rows.map((t) => {
+                  const style = STATUS_STYLES[t.status] || STATUS_STYLES.waiting;
                   return (
-                    <tr key={`${r.id}-${r.status}`} className="border-b border-white/[0.03] last:border-0 hover:bg-white/[0.02]">
+                    <tr key={t._id} className="border-b border-white/[0.03] last:border-0 hover:bg-white/[0.02]">
                       <td className="px-3 py-2.5">
                         <div className="flex items-center gap-2.5">
                           <span className="grid h-8 w-8 place-items-center rounded-full bg-white/[0.06] text-[10px] font-bold text-slate-300">
-                            {(r.name || '?').split(' ').map((p) => p[0]).slice(0,2).join('')}
+                            {initialsOf(t.customerName)}
                           </span>
-                          <span className="font-medium text-white">{r.name}</span>
+                          <span className="font-medium text-white">{t.customerName}</span>
                         </div>
                       </td>
-                      <td className="px-3 py-2.5 font-mono text-xs text-slate-400">{r.id}</td>
-                      <td className="px-3 py-2.5 text-slate-300">{r.service || 'General'}</td>
+                      <td className="px-3 py-2.5 font-mono text-xs text-slate-400">#{t.ticketNumber}</td>
+                      <td className="px-3 py-2.5 text-slate-300">{queueNameById.get(t.queueId) || '—'}</td>
                       <td className="px-3 py-2.5">
                         <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-semibold capitalize ring-1 ${style.text} ${style.ring} ${style.bg}`}>
                           <span className={`h-1.5 w-1.5 rounded-full ${style.dot}`} />
-                          {r.status}
+                          {t.status}
                         </span>
                       </td>
-                      <td className="px-3 py-2.5 font-mono text-xs text-slate-400">{r.arrival}</td>
-                      <td className="px-3 py-2.5 text-slate-400">{r.desk}</td>
+                      <td className="px-3 py-2.5 font-mono text-xs text-slate-400">{formatJoined(t.joinedAt)}</td>
                     </tr>
                   );
                 })}
@@ -145,4 +212,14 @@ export default function CustomersPage() {
       </div>
     </StaffShell>
   );
+}
+
+function initialsOf(name = '') {
+  return name.split(' ').filter(Boolean).map((p) => p[0]).slice(0, 2).join('').toUpperCase() || '?';
+}
+
+function formatJoined(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }

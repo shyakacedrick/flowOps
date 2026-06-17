@@ -3,6 +3,7 @@ import { Search, Menu, Command, Globe2 } from 'lucide-react';
 import AdminSidebar, { AdminMobileDrawer } from '@/features/admin/components/AdminSidebar.jsx';
 import UserMenu from '@/shared/components/UserMenu.jsx';
 import NotificationsMenu from '@/shared/components/NotificationsMenu.jsx';
+import { pathForActivity } from '@/shared/utils/pathForActivity.js';
 import { ROUTES } from '@/shared/constants/routes.js';
 
 /**
@@ -67,7 +68,11 @@ export default function AdminLayout({ children }) {
                   <Globe2 className="h-3.5 w-3.5 text-violet-300" />
                   Region · US-East
                 </button>
-                <NotificationsMenu seeAllPath={ROUTES.admin.auditLogs} accent="violet" />
+                <NotificationsMenu
+                  seeAllPath={ROUTES.admin.auditLogs}
+                  accent="violet"
+                  getItemPath={(it) => pathForActivity(it, 'platform_admin')}
+                />
                 <UserMenu
                   settingsPath={ROUTES.admin.settings}
                   gradient="from-violet-500 via-cyan-400 to-blue-500"

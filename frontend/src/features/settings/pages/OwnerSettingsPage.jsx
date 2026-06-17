@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Building2, Bell, ShieldCheck, Users, MapPin, ListChecks, Save, Loader2, CheckCircle2, AlertCircle, User as UserIcon } from 'lucide-react';
+import { Building2, Users, Save, Loader2, CheckCircle2, AlertCircle, User as UserIcon } from 'lucide-react';
 import HybridDashboardShell from '@/features/dashboard/components/HybridDashboardShell.jsx';
 import PageHeader from '@/shared/components/PageHeader.jsx';
 import { useAuth } from '@/app/providers/AuthProvider.jsx';
@@ -93,24 +93,6 @@ function Field({ label, hint, children }) {
 }
 
 const inputCls = 'w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-slate-200 placeholder:text-slate-500 focus:border-cyan-400/40 focus:outline-none';
-
-function Toggle({ label, hint, defaultOn = false }) {
-  const [on, setOn] = useState(defaultOn);
-  return (
-    <div className="flex items-start justify-between gap-4 rounded-2xl border border-white/[0.05] bg-white/[0.02] px-3 py-3">
-      <div>
-        <p className="text-sm font-semibold text-white">{label}</p>
-        {hint && <p className="mt-0.5 text-xs text-slate-400">{hint}</p>}
-      </div>
-      <button
-        onClick={() => setOn((v) => !v)}
-        className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${on ? 'bg-gradient-to-r from-cyan-400 to-blue-500' : 'bg-white/10'}`}
-      >
-        <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${on ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />
-      </button>
-    </div>
-  );
-}
 
 function BusinessSection() {
   const { session } = useAuth();
@@ -260,104 +242,16 @@ function BusinessSection() {
   );
 }
 
-function QueueRulesSection() {
-  return (
-    <Card title="Queue rules" subtitle="How tickets, priorities, and SLAs behave">
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Max tickets per queue"><input type="number" className={inputCls} defaultValue={50} /></Field>
-        <Field label="Target wait time (min)"><input type="number" className={inputCls} defaultValue={15} /></Field>
-        <Field label="Auto-mark no-show after (min)"><input type="number" className={inputCls} defaultValue={10} /></Field>
-        <Field label="Priority lane"><select className={inputCls}><option>Disabled</option><option>VIP only</option><option>Auto-detect</option></select></Field>
-      </div>
-      <Toggle label="Allow walk-in tickets" hint="Customers can take a ticket on-site" defaultOn />
-      <Toggle label="Enable QR self check-in" hint="Customers scan a code from their phone" defaultOn />
-      <Toggle label="Pre-book appointments" hint="Customers can reserve a time slot" />
-    </Card>
-  );
-}
-
-function NotificationsSection() {
-  return (
-    <Card title="Notifications" subtitle="Channel & trigger settings">
-      <Toggle label="SMS · Your turn is next"          hint="Sent when customer is ≤ 2 positions away" defaultOn />
-      <Toggle label="SMS · Approximate wait update"    hint="Triggered when wait crosses 10m" defaultOn />
-      <Toggle label="Email · Daily owner summary"      hint="Sent 19:30 with KPIs and insights" defaultOn />
-      <Toggle label="Push · Staff break reminders"     hint="Mobile notifications to staff app" />
-      <Toggle label="Slack · Critical SLA breaches"    hint="Posts to #flowops-alerts" />
-    </Card>
-  );
-}
-
 function RolesSection() {
-  const rows = [
-    { name: 'Mira Patel',   role: 'Owner',     email: 'mira@clarityclinics.io',  tone: 'cyan' },
-    { name: 'Jordan Lee',   role: 'Staff',     email: 'jordan@clarityclinics.io',tone: 'violet' },
-    { name: 'Priya Shah',   role: 'Staff',     email: 'priya@clarityclinics.io', tone: 'violet' },
-    { name: 'Sam Cole',     role: 'Manager',   email: 'sam@clarityclinics.io',   tone: 'emerald' },
-  ];
-  const TONES = { cyan: 'bg-cyan-500/10 text-cyan-300 ring-cyan-400/20', violet: 'bg-violet-500/10 text-violet-300 ring-violet-400/20', emerald: 'bg-emerald-500/10 text-emerald-300 ring-emerald-400/20' };
   return (
     <div className="space-y-5">
       <InvitesPanel />
-      <Card title="User roles" subtitle="Who has access and what they can do (sample preview — real user management lands in Phase 12)">
-        <ul className="divide-y divide-white/[0.05]">
-          {rows.map((r) => (
-            <li key={r.email} className="flex items-center gap-4 py-3">
-              <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white/[0.06] text-xs font-bold text-slate-200">
-                {r.name.split(' ').map((p) => p[0]).slice(0,2).join('')}
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold text-white">{r.name}</p>
-                <p className="truncate text-[11px] text-slate-400">{r.email}</p>
-              </div>
-              <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ring-1 ${TONES[r.tone]}`}>{r.role}</span>
-            </li>
-          ))}
-        </ul>
+      <Card title="Active team members" subtitle="Members appear here once they accept an invite">
+        <p className="text-xs text-slate-400">
+          Real-time member listing lands with the team management release. Use{' '}
+          <span className="text-cyan-300">Invites</span> above to bring teammates into your workspace today.
+        </p>
       </Card>
     </div>
-  );
-}
-
-function AccountSection() {
-  return (
-    <Card title="Account preferences" subtitle="Security & personal settings">
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Display name"><input className={inputCls} defaultValue="Mira Patel" /></Field>
-        <Field label="Email"><input className={inputCls} defaultValue="mira@clarityclinics.io" /></Field>
-        <Field label="Language"><select className={inputCls}><option>English (US)</option><option>Español</option><option>Français</option></select></Field>
-        <Field label="Theme"><select className={inputCls}><option>Dark (recommended)</option><option>Light</option><option>System</option></select></Field>
-      </div>
-      <Toggle label="Two-factor authentication" hint="Use an authenticator app" defaultOn />
-      <Toggle label="Allow session sharing across devices" />
-    </Card>
-  );
-}
-
-function BranchesSection() {
-  const branches = [
-    { name: 'Clarity Clinics · Downtown',  staff: 8, status: 'Live' },
-    { name: 'Clarity Clinics · Marina',    staff: 5, status: 'Live' },
-    { name: 'Clarity Clinics · East Bay',  staff: 4, status: 'Setup' },
-  ];
-  return (
-    <Card title="Branches" subtitle="Manage every location running FlowOps">
-      <ul className="divide-y divide-white/[0.05]">
-        {branches.map((b) => (
-          <li key={b.name} className="flex items-center gap-4 py-3">
-            <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white/[0.06] text-cyan-300">
-              <MapPin className="h-4 w-4" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold text-white">{b.name}</p>
-              <p className="truncate text-[11px] text-slate-400">{b.staff} staff members</p>
-            </div>
-            <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ring-1 ${b.status === 'Live' ? 'bg-emerald-500/10 text-emerald-300 ring-emerald-400/20' : 'bg-amber-500/10 text-amber-300 ring-amber-400/20'}`}>
-              {b.status}
-            </span>
-          </li>
-        ))}
-      </ul>
-    </Card>
   );
 }

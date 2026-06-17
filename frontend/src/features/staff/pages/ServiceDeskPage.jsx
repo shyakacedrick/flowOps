@@ -1,32 +1,86 @@
+// ============================================================================
+//  ServiceDeskPage — operator workstation view, wired to real data
+// ----------------------------------------------------------------------------
+//  Workstation status, current-customer panel, and live shift KPIs derived
+//  from /api/analytics/summary and the live SSE stream. No simulation,
+//  no synthetic names, no fabricated hardware metrics.
+// ============================================================================
+
 import { useEffect, useState } from 'react';
 import {
   MonitorCog, Play, Pause, AlertCircle, AlertTriangle, CheckCircle2, Coffee,
-  Activity, Wifi, Printer, Wrench,
+  Activity,
 } from 'lucide-react';
 import StaffShell from '@/features/staff/components/StaffShell.jsx';
 import PageHeader, { StatCard } from '@/shared/components/PageHeader.jsx';
-import { useSimulationSlice } from '@/engine/SimulationProvider.jsx';
+import useAnalyticsSummary from '@/features/analytics/hooks/useAnalyticsSummary.js';
+import useQueues from '@/features/queue/hooks/useQueues.js';
+import { useOrgEventStream } from '@/shared/hooks/useEventStream.js';
+import ticketApi from '@/services/ticketApi.js';
 
-/**
- * ServiceDeskPage — single desk view. The operator's "command center".
- */
 export default function ServiceDeskPage() {
-  const current   = useSimulationSlice((s) => s.business.currentServing);
-  const served    = useSimulationSlice((s) => s.business.totalServed);
-  const avgSvc    = useSimulationSlice((s) => s.business.averageServiceTime);
-
-  const [paused, setPaused] = useState(false);
+  const { summary } = useAnalyticsSummary({ range: '24h', pollMs: 30_000 });
+  const { queues }  = useQueues();
+  const [serving, setServing] = useState(null);
+  const [paused, setPaused]   = useState(false);
   const [elapsed, setElapsed] = useState(0);
 
+  // Pull the latest serving ticket across all queues (one operator → one
+  // active customer at a time). Re-runs whenever the queue list changes.
+  useEffect(() => {
+    if (!queues.length) {
+      setServing(null);
+      return undefined;
+    }
+    let cancelled = false;
+    const load = async () => {
+      const results = await Promise.all(
+        queues.map((q) => ticketApi.list({ queueId: q._id, status: 'serving' })),
+      );
+      if (cancelled) return;
+      const merged = results
+        .filter((r) => r.ok && Array.isArray(r.data))
+        .flatMap((r) => r.data)
+        .sort((a, b) => new Date(b.updatedAt || b.joinedAt) - new Date(a.updatedAt || a.joinedAt));
+      setServing(merged[0] || null);
+    };
+    load();
+    const id = setInterval(load, 30_000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [queues]);
+
+  // Live SSE: update the displayed serving ticket as it changes status.
+  const stream = useOrgEventStream();
+  useEffect(() => {
+    const off1 = stream.on('ticket:updated', (t) => {
+      if (!t) return;
+      if (t.status === 'serving') {
+        setServing((cur) => (cur && cur._id === t._id ? t : t));
+      } else if (serving && serving._id === t._id) {
+        setServing(null);
+      }
+    });
+    return off1;
+  }, [stream, serving]);
+
+  // Elapsed-time ticker on the active customer.
   useEffect(() => {
     setElapsed(0);
-    if (!current) return undefined;
-    const t = setInterval(() => setElapsed((s) => s + 1), 1000);
+    if (!serving) return undefined;
+    const startedAt = new Date(serving.updatedAt || serving.joinedAt).getTime();
+    const tick = () => setElapsed(Math.max(0, Math.floor((Date.now() - startedAt) / 1000)));
+    tick();
+    const t = setInterval(tick, 1000);
     return () => clearInterval(t);
-  }, [current?.id]);
+  }, [serving?._id]);
 
   const mm = String(Math.floor(elapsed / 60)).padStart(2, '0');
   const ss = String(elapsed % 60).padStart(2, '0');
+
+  const servedToday = summary?.totals?.served ?? 0;
+  const avgServiceMins = summary?.avgServiceMins != null
+    ? `${Math.round(summary.avgServiceMins)}m`
+    : '—';
 
   return (
     <StaffShell>
@@ -34,7 +88,7 @@ export default function ServiceDeskPage() {
         <PageHeader
           eyebrow="Workstation"
           title="Service Desk"
-          subtitle="Manage your station, hardware status, and signal capacity to the floor."
+          subtitle="Manage your station and signal capacity to the floor."
           crumbs={[{ label: 'Staff', to: '/staff/dashboard' }, { label: 'Service Desk' }]}
           actions={(
             <div className={`inline-flex items-center gap-2 rounded-xl px-3 py-1.5 text-xs font-semibold ring-1 ${
@@ -42,16 +96,16 @@ export default function ServiceDeskPage() {
                      : 'bg-emerald-500/10 text-emerald-200 ring-emerald-400/30'
             }`}>
               <span className={`h-2 w-2 rounded-full ${paused ? 'bg-amber-400' : 'bg-emerald-400 animate-pulse'}`} />
-              Desk 2 · {paused ? 'Paused' : 'Active'}
+              {paused ? 'Paused' : 'Active'}
             </div>
           )}
         />
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <StatCard label="Served today"   value={served || 24} delta="Your output"    tone="emerald" icon={CheckCircle2} />
-          <StatCard label="Avg service"    value={`${Math.round(avgSvc) || 4}m`} delta="Per customer" tone="cyan" icon={Activity} />
-          <StatCard label="Current"        value={current?.id || '—'} delta={current?.service || 'Idle'} tone="violet" icon={MonitorCog} />
-          <StatCard label="Uptime"         value="5h 12m"        delta="This shift"    tone="amber" />
+          <StatCard label="Served (24h)" value={servedToday}     delta="Org-wide"     tone="emerald" icon={CheckCircle2} />
+          <StatCard label="Avg service"  value={avgServiceMins} delta="Per customer" tone="cyan"    icon={Activity} />
+          <StatCard label="Current"      value={serving ? `#${serving.ticketNumber}` : '—'} delta={serving?.customerName || 'Idle'} tone="violet" icon={MonitorCog} />
+          <StatCard label="Waiting"      value={summary?.totals?.waitingNow ?? 0}  delta="Across queues" tone="amber" />
         </div>
 
         <div className="grid gap-5 xl:grid-cols-12">
@@ -61,9 +115,9 @@ export default function ServiceDeskPage() {
             <div className="mt-4 flex items-center justify-between rounded-2xl border border-cyan-400/15 bg-cyan-500/[0.05] p-5">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-widest text-cyan-300">Now serving</p>
-                <p className="mt-1 text-2xl font-bold text-white">{current?.name || 'No active customer'}</p>
+                <p className="mt-1 text-2xl font-bold text-white">{serving?.customerName || 'No active customer'}</p>
                 <p className="mt-0.5 font-mono text-sm text-slate-400">
-                  {current?.id || '—'} · {current?.service || 'Idle'}
+                  {serving ? `#${serving.ticketNumber}` : '—'}
                 </p>
               </div>
               <div className="text-right">
@@ -77,31 +131,27 @@ export default function ServiceDeskPage() {
                 label={paused ? 'Resume desk' : 'Pause desk'}
                 onClick={() => setPaused((p) => !p)} />
               <DeskBtn icon={Coffee} tone="cyan" label="Take a break"
-                onClick={() => alert('Break logged (demo)')} />
+                onClick={() => setPaused(true)} />
               <DeskBtn icon={AlertCircle} tone="violet" label="Request help"
-                onClick={() => alert('Floor manager paged (demo)')} />
+                onClick={() => alert('Floor manager paged (coming soon)')} />
               <DeskBtn icon={AlertTriangle} tone="rose" label="Report issue"
-                onClick={() => alert('Issue reported (demo)')} />
+                onClick={() => alert('Issue reporting (coming soon)')} />
             </div>
           </section>
 
-          {/* Hardware status */}
+          {/* Shift overview — pulls real org-wide numbers */}
           <section className="rounded-3xl border border-white/[0.06] bg-white/[0.02] p-5 xl:col-span-5">
-            <h3 className="text-sm font-semibold text-white">Station status</h3>
-            <p className="text-xs text-slate-400">Connected hardware</p>
+            <h3 className="text-sm font-semibold text-white">Shift overview</h3>
+            <p className="text-xs text-slate-400">Last 24 hours, organisation-wide</p>
 
-            <ul className="mt-4 space-y-2">
-              <HardwareRow icon={Wifi}    name="Network"      detail="Connected · 92ms" ok />
-              <HardwareRow icon={Printer} name="Ticket printer" detail="Tray full · ready" ok />
-              <HardwareRow icon={MonitorCog} name="Display"   detail="Customer screen mirrored" ok />
-              <HardwareRow icon={Wrench}  name="Card reader"  detail="Idle · 1 retry today" warn />
+            <ul className="mt-4 space-y-3 text-sm">
+              <OverviewRow label="Joined"        value={summary?.totals?.joined ?? 0} />
+              <OverviewRow label="Served"        value={summary?.totals?.served ?? 0} />
+              <OverviewRow label="Skipped"       value={summary?.totals?.skipped ?? 0} />
+              <OverviewRow label="Cancelled"     value={summary?.totals?.cancelled ?? 0} />
+              <OverviewRow label="Abandon rate"  value={summary?.abandonRate != null ? `${summary.abandonRate}%` : '—'} />
+              <OverviewRow label="Avg wait"      value={summary?.avgWaitMins != null ? `${Math.round(summary.avgWaitMins)}m` : '—'} />
             </ul>
-
-            <div className="mt-5 rounded-2xl border border-white/[0.05] bg-white/[0.02] p-3">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Floor manager</p>
-              <p className="mt-1 text-sm font-semibold text-white">Sam Cohen</p>
-              <p className="text-[11px] text-slate-400">On floor · responds in &lt; 2m</p>
-            </div>
           </section>
         </div>
       </div>
@@ -127,19 +177,11 @@ function DeskBtn({ icon: Icon, tone, label, onClick }) {
   );
 }
 
-function HardwareRow({ icon: Icon, name, detail, ok, warn }) {
-  const tone = ok ? 'text-emerald-300' : warn ? 'text-amber-300' : 'text-rose-300';
-  const dot  = ok ? 'bg-emerald-400'   : warn ? 'bg-amber-400'   : 'bg-rose-400';
+function OverviewRow({ label, value }) {
   return (
-    <li className="flex items-center gap-3 rounded-2xl border border-white/[0.05] bg-white/[0.02] p-3">
-      <span className="grid h-9 w-9 place-items-center rounded-xl bg-white/[0.06]">
-        <Icon className={`h-4 w-4 ${tone}`} />
-      </span>
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-semibold text-white">{name}</p>
-        <p className="text-[11px] text-slate-400">{detail}</p>
-      </div>
-      <span className={`h-2 w-2 rounded-full ${dot}`} />
+    <li className="flex items-center justify-between border-b border-white/[0.04] pb-2 last:border-0">
+      <span className="text-xs text-slate-400">{label}</span>
+      <span className="font-semibold text-white tabular-nums">{value}</span>
     </li>
   );
 }

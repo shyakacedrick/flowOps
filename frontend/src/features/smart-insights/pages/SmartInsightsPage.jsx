@@ -25,8 +25,8 @@ const RECOMMENDATIONS = [
   },
   {
     icon: Users, tone: 'violet',
-    title: 'Cross-train Marcus on Specialist desk',
-    body:  'Specialist desk has zero backup. Marcus has the closest skill overlap and 7m idle capacity in afternoons.',
+    title: 'Cross-train a backup for the Specialist desk',
+    body:  'The Specialist desk currently has no backup. Cross-training one nearby staff member with idle afternoon capacity will eliminate the single-point-of-failure.',
     impact: 'Medium',
     saving: 'Risk reduction',
   },

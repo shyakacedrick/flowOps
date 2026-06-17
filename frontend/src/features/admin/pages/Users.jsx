@@ -21,6 +21,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import AdminLayout from '@/features/admin/components/AdminShell.jsx';
 import PageHeader, { StatCard } from '@/shared/components/PageHeader.jsx';
+import { SkeletonTableRows } from '@/shared/components/Skeleton.jsx';
 import useUsers from '@/features/admin/hooks/useUsers.js';
 import { useToast } from '@/shared/components/ToastProvider.jsx';
 import { useAuth } from '@/app/providers/AuthProvider.jsx';
@@ -44,7 +45,7 @@ export default function Users() {
   const meId = session?.id || session?._id || null;
 
   const [roleFilter, setRoleFilter]     = useState('all');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('active');
   const [query, setQuery]               = useState('');
   const [openUser, setOpenUser]         = useState(null);
 
@@ -97,10 +98,10 @@ export default function Users() {
         )}
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <StatCard label="Total users" value={users.length}      delta="In current view"   tone="violet"  icon={UsersIcon} />
-          <StatCard label="Platform admins" value={totalAdmins}   delta="Super-users"        tone="amber"   icon={ShieldCheck} />
-          <StatCard label="Business owners" value={totalOwners}   delta="Org administrators" tone="cyan" />
-          <StatCard label="Suspended"   value={totalSuspended}    delta="Frozen"             tone="rose"    icon={ShieldOff} />
+          <StatCard label="Users in view"    value={users.length}    delta={statusFilter === 'all' ? 'All users' : statusFilter === 'active' ? 'Active only' : 'Suspended only'} tone="violet"  icon={UsersIcon} />
+          <StatCard label="Platform admins"  value={totalAdmins}     delta="Super-users"        tone="amber"   icon={ShieldCheck} />
+          <StatCard label="Business owners"  value={totalOwners}     delta="Org administrators" tone="cyan" />
+          <StatCard label="Suspended"        value={totalSuspended}  delta={statusFilter === 'active' ? 'Hidden in this view' : 'Frozen'} tone="rose" icon={ShieldOff} />
         </div>
 
         <section className="rounded-3xl border border-white/[0.06] bg-white/[0.02] p-5">
@@ -191,7 +192,7 @@ export default function Users() {
                   <tr><td colSpan={6} className="py-10 text-center text-sm text-slate-500">No matching users.</td></tr>
                 )}
                 {status === 'loading' && rows.length === 0 && (
-                  <tr><td colSpan={6} className="py-10 text-center text-sm text-slate-500">Loading users…</td></tr>
+                  <SkeletonTableRows colSpan={6} rows={5} />
                 )}
               </tbody>
             </table>

@@ -186,6 +186,17 @@ export async function request(path, opts = {}) {
   const data = contentType.includes('application/json') ? await res.json().catch(() => null) : null;
 
   if (!res.ok) {
+    // Surface 5xx (server fault) as a global event so a top-level toast can
+    // tell the user "we're having trouble". Per-call sites still get the
+    // structured error envelope and can override with their own messaging.
+    // 4xx errors are typically caller-fault (validation) and stay local.
+    if (res.status >= 500 && typeof window !== 'undefined') {
+      try {
+        window.dispatchEvent(new CustomEvent('flowops:server-error', {
+          detail: { status: res.status, path, message: data?.message ?? res.statusText },
+        }));
+      } catch { /* ignore */ }
+    }
     return {
       ok: false,
       status: res.status,

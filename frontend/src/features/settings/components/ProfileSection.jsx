@@ -46,6 +46,9 @@ export default function ProfileSection() {
 const AVATAR_MAX_PX = 256;
 const AVATAR_WEBP_QUALITY = 0.85;
 const AVATAR_MAX_INPUT_BYTES = 5 * 1024 * 1024; // 5MB raw upload cap
+// Backend hard cap is 300_000 chars on the base64 data URL. Keep a safety
+// margin so very noisy photos don't squeak past compression and 413 server-side.
+const AVATAR_MAX_ENCODED_CHARS = 280_000;
 const ACCEPTED_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
 
 /**
@@ -110,7 +113,8 @@ function AvatarCard() {
       return;
     }
     if (file.size > AVATAR_MAX_INPUT_BYTES) {
-      toast.error('Image is too large — please pick one under 5MB.');
+      const mb = (file.size / 1024 / 1024).toFixed(1);
+      toast.error(`That image is ${mb}MB — please pick one under 5MB.`);
       return;
     }
 
@@ -118,6 +122,12 @@ function AvatarCard() {
     try {
       const img = await fileToImage(file);
       const dataUrl = compressAvatar(img);
+      // Defensive: extremely noisy images can still exceed the server cap
+      // even after downscale+webp. Catch it client-side with a friendly hint.
+      if (dataUrl.length > AVATAR_MAX_ENCODED_CHARS) {
+        toast.error('That image stayed too large after compression. Try a simpler photo or crop it first.');
+        return;
+      }
       const res = await authApi.updateMe({ avatarUrl: dataUrl });
       if (!res.ok) {
         toast.error(res.message || 'Could not save your photo.');

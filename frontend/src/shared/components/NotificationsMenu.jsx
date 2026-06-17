@@ -18,14 +18,17 @@
 //    - re-fetch when the dropdown opens
 //
 //  Props:
-//    seeAllPath — route the "See all" footer link navigates to. Owner →
-//                 customer-feed, staff → notifications, admin → audit-logs.
-//    accent     — Tailwind colour token for the unread badge ('rose' for
-//                 staff, 'cyan' for owner, 'violet' for admin).
-//    align      — 'right' (default) | 'left' dropdown alignment.
+//    seeAllPath  — route the footer link navigates to. Owner → customer-feed,
+//                  staff → notifications, admin → audit-logs.
+//    seeAllLabel — footer link text. Defaults to 'See all activity →'.
+//    accent      — Tailwind colour token for the unread badge ('rose' for
+//                  staff, 'cyan' for owner, 'violet' for admin).
+//    align       — 'right' (default) | 'left' dropdown alignment.
+//    getItemPath — (item) => string|null. When provided, rows become links
+//                  that navigate to the returned path. Falsy = non-navigable.
 // ============================================================================
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -46,15 +49,16 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { useAuth } from '@/app/providers/AuthProvider.jsx';
-import activityApi from '@/services/activityApi.js';
+import { useUnreadActivity } from '@/shared/hooks/useUnreadActivity.js';
 
-const POLL_INTERVAL_MS = 60_000;
-const FETCH_LIMIT = 8;
-
+// One unified accent across every role so the notification badge always
+// reads as "unread = rose". Role-specific theming (sidebar gradients,
+// dashboard tints) lives elsewhere; the notification badge stays universal
+// for instant recognition.
 const ACCENT = {
-  rose:   { dot: 'bg-rose-500',    badge: 'bg-rose-500',   ring: 'ring-rose-400/40' },
-  cyan:   { dot: 'bg-cyan-400',    badge: 'bg-cyan-400 text-slate-900', ring: 'ring-cyan-400/40' },
-  violet: { dot: 'bg-violet-500',  badge: 'bg-violet-500', ring: 'ring-violet-400/40' },
+  rose:   { dot: 'bg-rose-500', badge: 'bg-rose-500 text-white', ring: 'ring-rose-400/40' },
+  cyan:   { dot: 'bg-rose-500', badge: 'bg-rose-500 text-white', ring: 'ring-rose-400/40' },
+  violet: { dot: 'bg-rose-500', badge: 'bg-rose-500 text-white', ring: 'ring-rose-400/40' },
 };
 
 /**
@@ -105,58 +109,38 @@ function timeAgo(iso) {
 
 export default function NotificationsMenu({
   seeAllPath,
+  seeAllLabel = 'See all activity →',
   accent = 'rose',
   align = 'right',
+  getItemPath,
 }) {
   const { session } = useAuth();
   const location = useLocation();
   const [open, setOpen] = useState(false);
-  const [items, setItems] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
   const wrapperRef = useRef(null);
 
-  // Per-user, per-device read marker. Keying by userId means switching
-  // accounts on the same machine doesn't inherit someone else's read state.
+  const {
+    items,
+    count: unreadCount,
+    loading,
+    error,
+    refetch,
+    markAllRead,
+  } = useUnreadActivity();
+
+  // Per-user lastSeen lookup for per-row "unread" rendering. Re-evaluated
+  // when the marker advances via markAllRead (kept in localStorage by the hook).
   const storageKey = session?.userId ? `flowops:notif:lastSeen:${session.userId}` : null;
-  const [lastSeen, setLastSeen] = useState(() => {
+  const lastSeen = (() => {
     if (!storageKey || typeof window === 'undefined') return 0;
     const raw = window.localStorage.getItem(storageKey);
     return raw ? Number(raw) || 0 : 0;
-  });
-
-  // Reload when account changes.
-  useEffect(() => {
-    if (!storageKey || typeof window === 'undefined') return;
-    const raw = window.localStorage.getItem(storageKey);
-    setLastSeen(raw ? Number(raw) || 0 : 0);
-  }, [storageKey]);
-
-  const fetchActivity = useCallback(async () => {
-    if (!session) return;
-    setLoading(true);
-    const res = await activityApi.list({ limit: FETCH_LIMIT });
-    setLoading(false);
-    if (!res.ok) {
-      setError(res.message || 'Could not load notifications.');
-      return;
-    }
-    setError(null);
-    setItems(Array.isArray(res.data) ? res.data : []);
-  }, [session]);
-
-  // Initial fetch + polling.
-  useEffect(() => {
-    if (!session) return undefined;
-    fetchActivity();
-    const id = setInterval(fetchActivity, POLL_INTERVAL_MS);
-    return () => clearInterval(id);
-  }, [session, fetchActivity]);
+  })();
 
   // Re-fetch when the menu opens so the dropdown always shows fresh data.
   useEffect(() => {
-    if (open) fetchActivity();
-  }, [open, fetchActivity]);
+    if (open) refetch();
+  }, [open, refetch]);
 
   // Dismissal handlers: outside click, Escape, route change.
   useEffect(() => {
@@ -177,24 +161,6 @@ export default function NotificationsMenu({
 
   useEffect(() => { setOpen(false); }, [location.pathname]);
 
-  // Unread = items newer than the locally-tracked marker.
-  const unreadCount = items.reduce((n, it) => {
-    const ts = new Date(it.createdAt).getTime();
-    return ts > lastSeen ? n + 1 : n;
-  }, 0);
-
-  const markAllRead = () => {
-    if (items.length === 0) return;
-    const newest = items.reduce((max, it) => {
-      const ts = new Date(it.createdAt).getTime();
-      return ts > max ? ts : max;
-    }, 0);
-    setLastSeen(newest);
-    if (storageKey && typeof window !== 'undefined') {
-      window.localStorage.setItem(storageKey, String(newest));
-    }
-  };
-
   const tone = ACCENT[accent] || ACCENT.rose;
   const panelSide = align === 'left' ? 'left-0' : 'right-0';
 
@@ -213,9 +179,7 @@ export default function NotificationsMenu({
         <Bell className="h-4 w-4" />
         {unreadCount > 0 && (
           <span
-            className={`absolute top-1 right-1 grid h-4 min-w-[16px] place-items-center rounded-full ${tone.badge} px-1 text-[9px] font-bold ${
-              accent === 'cyan' ? '' : 'text-white'
-            } ring-2 ring-[#0B1120]`}
+            className={`absolute top-1 right-1 grid h-4 min-w-[16px] place-items-center rounded-full ${tone.badge} px-1 text-[9px] font-bold ring-2 ring-[#0B1120]`}
           >
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
@@ -230,7 +194,7 @@ export default function NotificationsMenu({
             exit={{    opacity: 0, y: -6, scale: 0.98 }}
             transition={{ duration: 0.14, ease: 'easeOut' }}
             role="menu"
-            className={`absolute ${panelSide} z-50 mt-2 w-80 origin-top overflow-hidden rounded-2xl border border-white/10 bg-[#0B1120]/95 shadow-[0_24px_60px_-20px_rgba(2,8,23,0.9)] backdrop-blur-xl sm:w-96`}
+            className={`absolute ${panelSide} z-50 mt-2 w-80 max-w-[calc(100vw-1rem)] origin-top overflow-hidden rounded-2xl border border-white/10 bg-[#0B1120]/95 shadow-[0_24px_60px_-20px_rgba(2,8,23,0.9)] backdrop-blur-xl sm:w-96`}
           >
             {/* Header */}
             <div className="flex items-center justify-between gap-2 border-b border-white/[0.06] px-4 py-3">
@@ -258,15 +222,29 @@ export default function NotificationsMenu({
             {/* Body */}
             <div className="max-h-[60vh] overflow-y-auto">
               {error ? (
-                <ErrorState message={error} onRetry={fetchActivity} />
+                <ErrorState message={error} onRetry={refetch} />
               ) : items.length === 0 ? (
-                loading ? <SkeletonRows /> : <EmptyState />
+                loading ? <SkeletonRows /> : <EmptyState role={session?.role} onClose={() => setOpen(false)} />
               ) : (
                 <ul className="divide-y divide-white/[0.04]">
                   {items.map((it) => {
                     const ts = new Date(it.createdAt).getTime();
                     const unread = ts > lastSeen;
-                    return <Row key={it._id || it.id} item={it} unread={unread} accentDot={tone.dot} />;
+                    // Prefer the role-specific destination from getItemPath;
+                    // fall back to the "See all" page so every row is always
+                    // clickable (never a dead click).
+                    const specific = typeof getItemPath === 'function' ? getItemPath(it) : null;
+                    const to = specific || seeAllPath || null;
+                    return (
+                      <Row
+                        key={it._id || it.id}
+                        item={it}
+                        unread={unread}
+                        accentDot={tone.dot}
+                        to={to}
+                        onNavigate={() => setOpen(false)}
+                      />
+                    );
                   })}
                 </ul>
               )}
@@ -280,7 +258,7 @@ export default function NotificationsMenu({
                   onClick={() => setOpen(false)}
                   className="block rounded-xl px-3 py-2 text-center text-xs font-semibold text-cyan-300 transition-colors hover:bg-white/[0.04]"
                 >
-                  See all activity →
+                  {seeAllLabel}
                 </Link>
               </div>
             )}
@@ -293,13 +271,14 @@ export default function NotificationsMenu({
 
 // ── Subcomponents ──────────────────────────────────────────────────────────
 
-function Row({ item, unread, accentDot }) {
+function Row({ item, unread, accentDot, to, onNavigate }) {
   const meta = TYPE_META[item.type] || { icon: Bell, tone: 'slate' };
   const Icon = meta.icon;
   const actorName = item.actorId?.name || 'System';
   const cls = TONE_CLS[meta.tone] || TONE_CLS.slate;
-  return (
-    <li className={`flex items-start gap-3 px-4 py-3 transition-colors hover:bg-white/[0.03] ${unread ? '' : 'opacity-70'}`}>
+
+  const body = (
+    <>
       <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ring-1 ${cls}`}>
         <Icon className="h-4 w-4" />
       </span>
@@ -314,6 +293,20 @@ function Row({ item, unread, accentDot }) {
         </p>
       </div>
       {unread && <span className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${accentDot}`} aria-label="Unread" />}
+    </>
+  );
+
+  const baseCls = `flex items-start gap-3 px-4 py-3 transition-colors hover:bg-white/[0.03] ${unread ? '' : 'opacity-70'}`;
+
+  return (
+    <li>
+      {to ? (
+        <Link to={to} onClick={onNavigate} className={`${baseCls} focus:bg-white/[0.04] focus:outline-none`}>
+          {body}
+        </Link>
+      ) : (
+        <div className={baseCls}>{body}</div>
+      )}
     </li>
   );
 }
@@ -337,14 +330,40 @@ function SkeletonRows() {
   );
 }
 
-function EmptyState() {
+function EmptyState({ role, onClose }) {
+  // Tailored copy + an actionable CTA so a brand-new workspace doesn't see a
+  // generic dead-end. Mirrors how the dashboard onboards: "create a queue →
+  // see activity flow."
+  const cta = (() => {
+    if (role === 'platform_admin') {
+      return { label: 'Open audit logs', to: '/admin/audit-logs' };
+    }
+    if (role === 'staff') {
+      return { label: 'Open my queue', to: '/staff/my-queue' };
+    }
+    // owner / default
+    return { label: 'Manage queues', to: '/operations' };
+  })();
+
+  const subtitle =
+    role === 'business_owner'
+      ? 'Create a queue to start seeing activity here.'
+      : role === 'staff'
+      ? 'Customer activity will appear here as it happens.'
+      : 'Platform events will appear here as they occur.';
+
   return (
     <div className="px-4 py-10 text-center">
       <Bell className="mx-auto h-6 w-6 text-slate-600" />
       <p className="mt-2 text-sm font-semibold text-slate-200">No activity yet</p>
-      <p className="mt-1 text-[11px] text-slate-500">
-        New events from your workspace will appear here.
-      </p>
+      <p className="mt-1 text-[11px] text-slate-500">{subtitle}</p>
+      <Link
+        to={cta.to}
+        onClick={onClose}
+        className="mt-3 inline-flex items-center gap-1 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[10px] font-semibold text-slate-200 hover:bg-white/[0.08]"
+      >
+        {cta.label} →
+      </Link>
     </div>
   );
 }

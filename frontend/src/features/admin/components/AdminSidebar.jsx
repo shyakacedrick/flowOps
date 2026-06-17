@@ -33,14 +33,14 @@ import { ease } from '@/animations/motion.js';
 
 export const ADMIN_NAV = [
   { key: 'overview',           label: 'Platform Overview', icon: LayoutDashboard, to: '/admin/overview' },
-  { key: 'organizations',      label: 'Organizations',     icon: Building2,       to: '/admin/organizations', badge: 12 },
+  { key: 'organizations',      label: 'Organizations',     icon: Building2,       to: '/admin/organizations' },
   { key: 'users',              label: 'Users',             icon: Users,           to: '/admin/users' },
   { key: 'queues',             label: 'Queues',            icon: ListChecks,      to: '/admin/queues' },
   { key: 'subscriptions',      label: 'Subscriptions',     icon: CreditCard,      to: '/admin/subscriptions' },
   { key: 'platform-analytics', label: 'Platform Analytics',icon: LineChart,       to: '/admin/platform-analytics' },
   { key: 'system-monitoring',  label: 'System Monitoring', icon: Activity,        to: '/admin/system-monitoring' },
   { key: 'audit-logs',         label: 'Audit Logs',        icon: ScrollText,      to: '/admin/audit-logs' },
-  { key: 'support-center',     label: 'Support Center',    icon: LifeBuoy,        to: '/admin/support-center', badge: 4 },
+  { key: 'support-center',     label: 'Support Center',    icon: LifeBuoy,        to: '/admin/support-center' },
   { key: 'settings',           label: 'Settings',          icon: Settings,        to: '/admin/settings' },
 ];
 

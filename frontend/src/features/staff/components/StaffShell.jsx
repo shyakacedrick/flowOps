@@ -22,9 +22,11 @@ import {
 } from 'lucide-react';
 import { useAuth, ROLE_META } from '@/app/providers/AuthProvider.jsx';
 import { ease } from '@/animations/motion.js';
-import { useSimulationSlice } from '@/engine/SimulationProvider.jsx';
+import useAnalyticsSummary from '@/features/analytics/hooks/useAnalyticsSummary.js';
+import { useUnreadActivity } from '@/shared/hooks/useUnreadActivity.js';
 import UserMenu from '@/shared/components/UserMenu.jsx';
 import NotificationsMenu from '@/shared/components/NotificationsMenu.jsx';
+import { pathForActivity } from '@/shared/utils/pathForActivity.js';
 import { ROUTES } from '@/shared/constants/routes.js';
 
 /**
@@ -42,7 +44,7 @@ const NAV = [
   { key: 'customers',     label: 'Customers',     icon: Users,           to: '/staff/customers' },
   { key: 'service-desk',  label: 'Service Desk',  icon: MonitorCog,      to: '/staff/service-desk' },
   { key: 'activity-feed', label: 'Activity Feed', icon: Activity,        to: '/staff/activity-feed' },
-  { key: 'notifications', label: 'Notifications', icon: Bell,            to: '/staff/notifications', badge: 3 },
+  { key: 'notifications', label: 'Notifications', icon: Bell,            to: '/staff/notifications' },
   { key: 'schedule',      label: 'Schedule',      icon: Calendar,        to: '/staff/schedule' },
   { key: 'settings',      label: 'Settings',      icon: Settings,        to: '/staff/settings' },
 ];
@@ -64,11 +66,21 @@ export default function StaffShell({ children }) {
     window.localStorage.setItem('flowops:staff:collapsed', collapsed ? '1' : '0');
   }, [collapsed]);
 
-  const queueLen   = useSimulationSlice((s) => s.queue.length);
-  const nowServing = useSimulationSlice((s) => s.business.currentServing);
+  const { summary } = useAnalyticsSummary({ range: '24h', pollMs: 30_000 });
+  const queueLen   = summary?.totals?.waitingNow ?? 0;
+  const servingNow = summary?.totals?.servingNow ?? 0;
+
+  // Live unread badge for the Notifications nav item. Polls every 60s via
+  // the shared hook so the sidebar count stays in sync with the bell dropdown.
+  const { count: unreadCount } = useUnreadActivity();
+  const nav = NAV.map((item) =>
+    item.key === 'notifications' && unreadCount > 0
+      ? { ...item, badge: unreadCount > 9 ? '9+' : unreadCount }
+      : item,
+  );
 
   const activeKey =
-    NAV.find((n) => location.pathname.startsWith(n.to))?.key || 'dashboard';
+    nav.find((n) => location.pathname.startsWith(n.to))?.key || 'dashboard';
 
   const handleSignOut = () => {
     signOut();
@@ -84,6 +96,7 @@ export default function StaffShell({ children }) {
     <div className="min-h-screen bg-[#0B1120] text-slate-200">
       {/* desktop sidebar */}
       <DesktopSidebar
+        nav={nav}
         activeKey={activeKey}
         onNav={handleNav}
         onSignOut={handleSignOut}
@@ -99,6 +112,7 @@ export default function StaffShell({ children }) {
       <AnimatePresence>
         {mobileOpen && (
           <MobileSidebar
+            nav={nav}
             activeKey={activeKey}
             onNav={handleNav}
             onClose={() => setMobileOpen(false)}
@@ -121,7 +135,7 @@ export default function StaffShell({ children }) {
             session={session}
             meta={meta}
             queueLen={queueLen}
-            nowServing={nowServing}
+            servingNow={servingNow}
             shiftPaused={shiftPaused}
             onMenu={() => setMobileOpen(true)}
           />
@@ -139,7 +153,7 @@ export default function StaffShell({ children }) {
 // Sidebar variants
 // ---------------------------------------------------------------------------
 
-function DesktopSidebar({ activeKey, onNav, onSignOut, shiftPaused, onToggleShift, workspace, deskLabel, collapsed, onToggleCollapsed }) {
+function DesktopSidebar({ nav, activeKey, onNav, onSignOut, shiftPaused, onToggleShift, workspace, deskLabel, collapsed, onToggleCollapsed }) {
   return (
     <aside
       className={`fixed inset-y-0 left-0 z-30 hidden flex-col border-r border-white/[0.05] bg-[#0B1120] text-slate-300 transition-[width] duration-200 lg:flex ${
@@ -150,7 +164,7 @@ function DesktopSidebar({ activeKey, onNav, onSignOut, shiftPaused, onToggleShif
       {!collapsed && <ShiftStatus paused={shiftPaused} onToggle={onToggleShift} desk={deskLabel} />}
 
       <nav className={`mt-4 flex-1 space-y-0.5 ${collapsed ? 'px-2' : 'px-3'}`}>
-        {NAV.map((item) => (
+        {nav.map((item) => (
           <NavItem
             key={item.key}
             item={item}
@@ -170,7 +184,7 @@ function DesktopSidebar({ activeKey, onNav, onSignOut, shiftPaused, onToggleShif
   );
 }
 
-function MobileSidebar({ activeKey, onNav, onClose, onSignOut, shiftPaused, onToggleShift, workspace }) {
+function MobileSidebar({ nav, activeKey, onNav, onClose, onSignOut, shiftPaused, onToggleShift, workspace }) {
   return (
     <>
       <motion.div
@@ -191,7 +205,7 @@ function MobileSidebar({ activeKey, onNav, onClose, onSignOut, shiftPaused, onTo
         </div>
         <ShiftStatus paused={shiftPaused} onToggle={onToggleShift} desk="Desk 2" />
         <nav className="mt-4 flex-1 space-y-0.5 px-3">
-          {NAV.map((item) => (
+          {nav.map((item) => (
             <NavItem
               key={item.key}
               item={item}
@@ -289,8 +303,7 @@ function NavItem({ item, active, onClick, collapsed = false }) {
         </span>
       )}
       {!collapsed && item.badge ? (
-        <span className="relative grid h-5 min-w-[20px] place-items-center rounded-full bg-rose-500 px-1.5 text-[10px] font-bold text-white shadow-[0_0_12px_-1px_rgba(244,63,94,0.9)]">
-          <span className="absolute inset-0 -z-10 animate-ping rounded-full bg-rose-500/40" />
+        <span className="grid h-4 min-w-[16px] place-items-center rounded-full bg-rose-500 px-1 text-[9px] font-bold text-white ring-2 ring-[#0B1120]">
           {item.badge}
         </span>
       ) : null}
@@ -340,7 +353,7 @@ function SidebarFooter({ onSignOut, collapsed = false, onToggleCollapsed }) {
 // Top bar
 // ---------------------------------------------------------------------------
 
-function TopBar({ session, meta, queueLen, nowServing, shiftPaused, onMenu }) {
+function TopBar({ session, meta, queueLen, servingNow, shiftPaused, onMenu }) {
   return (
     <header className="relative flex items-center justify-between gap-3 px-4 py-5 sm:gap-4 sm:px-6 lg:px-10">
       <div className="flex min-w-0 flex-1 items-center gap-3">
@@ -363,14 +376,18 @@ function TopBar({ session, meta, queueLen, nowServing, shiftPaused, onMenu }) {
 
       <div className="flex shrink-0 items-center gap-2 sm:gap-3">
         <div className="hidden items-center gap-3 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-1.5 md:flex">
-          <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Now</span>
+          <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">Serving</span>
           <span className="font-mono text-sm font-bold text-cyan-300">
-            {nowServing?.id || '—'}
+            {servingNow}
           </span>
           <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-500">·</span>
           <span className="text-[11px] font-semibold text-slate-200">{queueLen} waiting</span>
         </div>
-        <NotificationsMenu seeAllPath={ROUTES.staff.notifications} accent="rose" />
+        <NotificationsMenu
+          seeAllPath={ROUTES.staff.notifications}
+          accent="rose"
+          getItemPath={(it) => pathForActivity(it, 'staff')}
+        />
         <UserMenu settingsPath={ROUTES.staff.settings} />
       </div>
     </header>

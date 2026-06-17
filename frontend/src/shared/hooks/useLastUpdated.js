@@ -1,11 +1,16 @@
-// "Updated Xs ago" tracker — derived from the central simulation's
-// `lastUpdatedAt` timestamp, with a 1s wall-clock heartbeat so the label
-// stays alive between engine events.
-import { useEffect, useState } from 'react';
-import { useSimulationSlice } from '@/engine/SimulationProvider.jsx';
+// ============================================================================
+//  useLastUpdated — wall-clock "fresh" tracker
+// ----------------------------------------------------------------------------
+//  Reports how long ago this component last mounted/updated. Independent of
+//  any simulation engine — the chart that consumes it polls real data
+//  separately and re-renders this component on each new payload, which is
+//  what the label tracks.
+// ============================================================================
+
+import { useEffect, useRef, useState } from 'react';
 
 export function useLastUpdated() {
-  const lastUpdatedAt = useSimulationSlice((s) => s.lastUpdatedAt);
+  const lastUpdatedAt = useRef(Date.now()).current;
   const [, setTick] = useState(0);
 
   useEffect(() => {
@@ -28,3 +33,5 @@ function format(s) {
   if (m < 60) return `Updated ${m}m ago`;
   return `Updated ${Math.floor(m / 60)}h ago`;
 }
+
+export default useLastUpdated;

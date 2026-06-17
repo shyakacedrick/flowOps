@@ -20,6 +20,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import AdminLayout from '@/features/admin/components/AdminShell.jsx';
 import PageHeader, { StatCard } from '@/shared/components/PageHeader.jsx';
+import { SkeletonTableRows } from '@/shared/components/Skeleton.jsx';
 import useOrganizations from '@/features/admin/hooks/useOrganizations.js';
 import { useToast } from '@/shared/components/ToastProvider.jsx';
 
@@ -42,7 +43,7 @@ export default function Organizations() {
   const { organizations, status, error, refresh, update } = useOrganizations();
 
   const [query,  setQuery]  = useState('');
-  const [filter, setFilter] = useState('all');
+  const [filter, setFilter] = useState('active');
   const [plan,   setPlan]   = useState('all');
   const [open,   setOpen]   = useState(null);
 
@@ -178,7 +179,7 @@ export default function Organizations() {
                   <tr><td colSpan={6} className="py-10 text-center text-sm text-slate-500">No matching organizations.</td></tr>
                 )}
                 {status === 'loading' && rows.length === 0 && (
-                  <tr><td colSpan={6} className="py-10 text-center text-sm text-slate-500">Loading organizations…</td></tr>
+                  <SkeletonTableRows colSpan={6} rows={5} />
                 )}
               </tbody>
             </table>

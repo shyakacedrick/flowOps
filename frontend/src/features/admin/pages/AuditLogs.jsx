@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import AdminLayout from '@/features/admin/components/AdminShell.jsx';
 import PageHeader, { StatCard } from '@/shared/components/PageHeader.jsx';
+import { SkeletonListRows } from '@/shared/components/Skeleton.jsx';
 import { useActivities } from '@/features/customer-feed/hooks/useActivities.js';
 
 // Must match backend/src/models/Activity.js ACTIVITY_TYPES.
@@ -170,7 +171,7 @@ export default function AuditLogs() {
               <li className="py-10 text-center text-sm text-slate-500">No matching events.</li>
             )}
             {status === 'loading' && rows.length === 0 && (
-              <li className="py-10 text-center text-sm text-slate-500">Loading activity…</li>
+              <SkeletonListRows rows={5} />
             )}
           </ol>
         </section>

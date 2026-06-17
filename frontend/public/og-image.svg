@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1200" y2="630" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0B1120"/>
+      <stop offset="100%" stop-color="#1E293B"/>
+    </linearGradient>
+    <linearGradient id="brand" x1="0" y1="0" x2="120" y2="120" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#22D3EE"/>
+      <stop offset="100%" stop-color="#3B82F6"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="900" cy="120" r="500" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#22D3EE" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#22D3EE" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glow2" cx="200" cy="600" r="500" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#3B82F6" stop-opacity="0.16"/>
+      <stop offset="100%" stop-color="#3B82F6" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect width="1200" height="630" fill="url(#glow)"/>
+  <rect width="1200" height="630" fill="url(#glow2)"/>
+
+  <!-- subtle grid -->
+  <g stroke="#FFFFFF" stroke-opacity="0.03" stroke-width="1">
+    <path d="M0 105 H1200 M0 210 H1200 M0 315 H1200 M0 420 H1200 M0 525 H1200"/>
+    <path d="M150 0 V630 M300 0 V630 M450 0 V630 M600 0 V630 M750 0 V630 M900 0 V630 M1050 0 V630"/>
+  </g>
+
+  <!-- logo mark -->
+  <g transform="translate(80, 80)">
+    <rect width="96" height="96" rx="24" fill="url(#brand)"/>
+    <path d="M58 18 L26 56 L46 56 L42 80 L74 42 L54 42 Z"
+          fill="none" stroke="#0F172A" stroke-width="6"
+          stroke-linejoin="round" stroke-linecap="round"/>
+  </g>
+
+  <!-- wordmark -->
+  <text x="200" y="148"
+        font-family="Inter, system-ui, sans-serif"
+        font-size="56" font-weight="800" fill="#FFFFFF" letter-spacing="-1.5">
+    FlowOps
+  </text>
+
+  <!-- headline -->
+  <text x="80" y="320"
+        font-family="Inter, system-ui, sans-serif"
+        font-size="76" font-weight="800" fill="#FFFFFF" letter-spacing="-2">
+    Smart queue management
+  </text>
+  <text x="80" y="400"
+        font-family="Inter, system-ui, sans-serif"
+        font-size="76" font-weight="800" fill="url(#brand)" letter-spacing="-2">
+    for service businesses.
+  </text>
+
+  <!-- subline -->
+  <text x="80" y="468"
+        font-family="Inter, system-ui, sans-serif"
+        font-size="28" font-weight="500" fill="#94A3B8" letter-spacing="-0.3">
+    Real-time queues · live analytics · operator console · multi-tenant
+  </text>
+
+  <!-- footer chips -->
+  <g transform="translate(80, 530)" font-family="Inter, system-ui, sans-serif" font-size="20" font-weight="600">
+    <g transform="translate(0, 0)">
+      <rect width="180" height="44" rx="22" fill="#FFFFFF" fill-opacity="0.06" stroke="#FFFFFF" stroke-opacity="0.12"/>
+      <circle cx="22" cy="22" r="5" fill="#22D3EE"/>
+      <text x="40" y="29" fill="#E2E8F0">Live demo</text>
+    </g>
+    <g transform="translate(200, 0)">
+      <rect width="220" height="44" rx="22" fill="#FFFFFF" fill-opacity="0.06" stroke="#FFFFFF" stroke-opacity="0.12"/>
+      <circle cx="22" cy="22" r="5" fill="#10B981"/>
+      <text x="40" y="29" fill="#E2E8F0">Built with React + Node</text>
+    </g>
+  </g>
+</svg>
