@@ -4,12 +4,17 @@ import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import pinoHttp from 'pino-http';
 import pino from 'pino';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import env from './config/env.js';
 import { pingDatabase } from './config/database.js';
 import apiRoutes from './routes/index.js';
 import notFound from './middleware/notFound.js';
 import errorHandler from './middleware/errorHandler.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const UPLOADS_DIR = path.resolve(__dirname, '../uploads');
 
 /**
  * Express application factory. Kept separate from server.js so it can
@@ -127,6 +132,28 @@ app.get('/health', async (_req, res) => {
 
 // ── API ────────────────────────────────────────────────────────────────────
 app.use(env.apiPrefix, apiRoutes);
+
+// ── Static uploads (org logos, etc.) ───────────────────────────────────────
+// Mounted AFTER /api so a request like /uploads/... can't collide with an
+// API route. helmet's `crossOriginResourcePolicy: 'cross-origin'` above lets
+// the SPA on a different origin load these images, and `fallthrough: false`
+// keeps a missing file as a 404 (not handed to the SPA's notFound handler,
+// which would render a JSON 404 — which is exactly what we want anyway).
+app.use(
+  '/uploads',
+  express.static(UPLOADS_DIR, {
+    fallthrough: false,
+    index: false,
+    dotfiles: 'deny',
+    maxAge: '7d',
+    setHeaders: (res) => {
+      // Lock down the response so the uploaded asset can never be parsed as
+      // HTML or executed as a script (defence-in-depth for SVG uploads).
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader('Content-Security-Policy', "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'");
+    },
+  })
+);
 
 // ── 404 + Errors (must be last) ────────────────────────────────────────────
 app.use(notFound);

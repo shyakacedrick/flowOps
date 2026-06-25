@@ -56,6 +56,7 @@ const StaffSettingsPage  = lazy(() => import('@/features/settings/pages/StaffSet
 const AdminOverview          = lazy(() => import('@/features/admin/pages/Overview.jsx'));
 const AdminOrganizations     = lazy(() => import('@/features/admin/pages/Organizations.jsx'));
 const AdminUsers             = lazy(() => import('@/features/admin/pages/Users.jsx'));
+const AdminUserActivity      = lazy(() => import('@/features/admin/pages/UserActivity.jsx'));
 const AdminQueues            = lazy(() => import('@/features/admin/pages/Queues.jsx'));
 const AdminSubscriptions     = lazy(() => import('@/features/admin/pages/Subscriptions.jsx'));
 const AdminPlatformAnalytics = lazy(() => import('@/features/analytics/pages/PlatformAnalytics.jsx'));
@@ -118,6 +119,7 @@ export default function AppRouter() {
         <Route path={ROUTES.admin.overview}          element={adminGuard(<AdminOverview />)} />
         <Route path={ROUTES.admin.organizations}     element={adminGuard(<AdminOrganizations />)} />
         <Route path={ROUTES.admin.users}             element={adminGuard(<AdminUsers />)} />
+        <Route path={ROUTES.admin.userActivity}      element={adminGuard(<AdminUserActivity />)} />
         <Route path={ROUTES.admin.queues}            element={adminGuard(<AdminQueues />)} />
         <Route path={ROUTES.admin.subscriptions}     element={adminGuard(<AdminSubscriptions />)} />
         <Route path={ROUTES.admin.platformAnalytics} element={adminGuard(<AdminPlatformAnalytics />)} />

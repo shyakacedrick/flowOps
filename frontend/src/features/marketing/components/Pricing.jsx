@@ -67,6 +67,9 @@ export default function Pricing() {
         <p className="mt-5 text-lg text-muted">
           Start free. Upgrade when your queues get serious. No hidden fees.
         </p>
+        <p className="mt-3 text-xs uppercase tracking-widest text-slate-500">
+          Pricing shown is indicative · self-serve billing rolls out soon
+        </p>
       </Reveal>
 
       <Stagger className="mt-14 grid gap-5 lg:grid-cols-3" stagger={0.1}>

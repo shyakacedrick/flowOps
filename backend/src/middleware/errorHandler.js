@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import jwt from 'jsonwebtoken';
 import ApiError from '../utils/ApiError.js';
 import env from '../config/env.js';
+import { captureException } from '../observability/sentry.js';
 
 /**
  * Centralized error handler. Normalizes thrown errors into the
@@ -51,6 +52,9 @@ const errorHandler = (err, req, res, _next) => {
     if (statusCode >= 500) {
       // eslint-disable-next-line no-console
       console.error(err.stack || err);
+      // Forward 5xx to Sentry. Captureception is a no-op when SENTRY_DSN
+      // is unset, so dev + CI carry zero overhead.
+      captureException(err, { req });
     }
   }
 

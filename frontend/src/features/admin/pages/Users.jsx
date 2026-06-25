@@ -13,10 +13,11 @@
 // ============================================================================
 
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Search, Filter, Users as UsersIcon, ShieldCheck, UserCog,
   RefreshCw, MoreHorizontal, X, AlertCircle, Save, ShieldOff,
-  CheckCircle2, MailCheck, Mail,
+  CheckCircle2, MailCheck, Mail, ScrollText,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import AdminLayout from '@/features/admin/components/AdminShell.jsx';
@@ -25,6 +26,7 @@ import { SkeletonTableRows } from '@/shared/components/Skeleton.jsx';
 import useUsers from '@/features/admin/hooks/useUsers.js';
 import { useToast } from '@/shared/components/ToastProvider.jsx';
 import { useAuth } from '@/app/providers/AuthProvider.jsx';
+import { ROUTES } from '@/shared/constants/routes.js';
 
 const ROLE_OPTIONS = ['platform_admin', 'business_owner', 'staff'];
 const ROLE_LABEL = {
@@ -316,6 +318,16 @@ function UserDrawerBody({ user, meId, onClose, onSave }) {
           icon={suspended ? ShieldOff : CheckCircle2}
         />
       </div>
+
+      {/* Audit trail — links to a dedicated per-user activity page. */}
+      <Link
+        to={ROUTES.admin.userActivity.replace(':userId', user._id)}
+        state={{ user }}
+        className="mt-4 inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-violet-400/30 bg-violet-500/10 px-3 py-2 text-xs font-semibold text-violet-200 hover:bg-violet-500/20"
+      >
+        <ScrollText className="h-3.5 w-3.5" />
+        View activity log
+      </Link>
 
       {/* Role */}
       <div className="mt-6">

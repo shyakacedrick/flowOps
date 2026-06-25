@@ -4,3 +4,5 @@ node_modules
 *.log
 coverage
 dist
+# Local user-uploaded assets (org logos, etc.). Tracked via the DB, not git.
+uploads/

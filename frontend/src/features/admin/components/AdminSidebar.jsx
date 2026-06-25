@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/app/providers/AuthProvider.jsx';
 import { ease } from '@/animations/motion.js';
+import useSystemHealth from '@/features/admin/hooks/useSystemHealth.js';
 
 /**
  * AdminSidebar — collapsible, sticky, route-driven navigation for the
@@ -53,6 +54,7 @@ export default function AdminSidebar({
   const navigate = useNavigate();
   const location = useLocation();
   const { signOut } = useAuth();
+  const { overall: healthStatus, lastChecked: healthCheckedAt } = useSystemHealth();
 
   const activeKey =
     ADMIN_NAV.find((n) => location.pathname.startsWith(n.to))?.key || 'overview';
@@ -89,26 +91,16 @@ export default function AdminSidebar({
         </Link>
         {isDrawer && (
           <button
-            onClick={onClose}
-            className="ml-auto grid h-9 w-9 place-items-center rounded-xl border border-white/10 text-slate-400"
+            onClick={onClose}            aria-label="Close menu"            className="ml-auto grid h-9 w-9 place-items-center rounded-xl border border-white/10 text-slate-400"
           >
             <X className="h-4 w-4" />
           </button>
         )}
       </div>
 
-      {/* Environment tag */}
+      {/* Environment tag — live system health pill */}
       {!isCollapsed && (
-        <div className="mx-4 mt-5 flex items-center justify-between rounded-2xl border border-emerald-400/20 bg-emerald-500/[0.06] px-3 py-2">
-          <div className="flex items-center gap-2">
-            <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
-            </span>
-            <span className="text-[11px] font-semibold text-emerald-200">All systems operational</span>
-          </div>
-          <span className="text-[9px] font-bold uppercase tracking-widest text-emerald-300/80">PROD</span>
-        </div>
+        <HealthPill status={healthStatus} lastChecked={healthCheckedAt} />
       )}
 
       {/* Nav */}
@@ -195,6 +187,67 @@ function NavItem({ item, active, collapsed, onClick }) {
 
 // Export sidebar width helper for layout offsets
 export const ADMIN_SIDEBAR_WIDTH = { collapsed: 76, expanded: 256 };
+
+// ── Live health pill ───────────────────────────────────────────────────────
+const HEALTH_PILL_STYLE = {
+  operational: {
+    container: 'border-emerald-400/20 bg-emerald-500/[0.06]',
+    dot:       'bg-emerald-400',
+    text:      'text-emerald-200',
+    badge:     'text-emerald-300/80',
+    label:     'All systems operational',
+    pulse:     true,
+  },
+  degraded: {
+    container: 'border-amber-400/20 bg-amber-500/[0.06]',
+    dot:       'bg-amber-400',
+    text:      'text-amber-200',
+    badge:     'text-amber-300/80',
+    label:     'Performance degraded',
+    pulse:     true,
+  },
+  incident: {
+    container: 'border-rose-400/30 bg-rose-500/[0.08]',
+    dot:       'bg-rose-400',
+    text:      'text-rose-200',
+    badge:     'text-rose-300/80',
+    label:     'Service incident',
+    pulse:     true,
+  },
+  unknown: {
+    container: 'border-white/10 bg-white/[0.04]',
+    dot:       'bg-slate-400',
+    text:      'text-slate-300',
+    badge:     'text-slate-400',
+    label:     'Probing systems…',
+    pulse:     false,
+  },
+};
+
+function HealthPill({ status, lastChecked }) {
+  const s = HEALTH_PILL_STYLE[status] || HEALTH_PILL_STYLE.unknown;
+  const env = (import.meta?.env?.MODE === 'production' || import.meta?.env?.PROD) ? 'PROD' : 'DEV';
+  const title = lastChecked
+    ? `Last checked ${lastChecked.toLocaleTimeString()}`
+    : 'Awaiting first probe';
+  return (
+    <div
+      title={title}
+      className={`mx-4 mt-5 flex items-center justify-between rounded-2xl border px-3 py-2 ${s.container}`}
+    >
+      <div className="flex items-center gap-2">
+        <span className="relative flex h-2 w-2">
+          {s.pulse && (
+            <span className={`absolute inline-flex h-full w-full animate-ping rounded-full opacity-75 ${s.dot}`} />
+          )}
+          <span className={`relative inline-flex h-2 w-2 rounded-full ${s.dot}`} />
+        </span>
+        <span className={`text-[11px] font-semibold ${s.text}`}>{s.label}</span>
+      </div>
+      <span className={`text-[9px] font-bold uppercase tracking-widest ${s.badge}`}>{env}</span>
+    </div>
+  );
+}
 
 // Re-export drawer wrapper used by AdminLayout
 export function AdminMobileDrawer({ open, onClose }) {

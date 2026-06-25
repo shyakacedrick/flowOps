@@ -27,17 +27,31 @@ export function useAnalyticsSummary({ range = '24h', pollMs = 30000 } = {}) {
         setStatus('loading');
         setError(null);
       }
-      const res = await api.get(`/analytics/summary?range=${encodeURIComponent(normalizedRange)}`);
-      inflightRef.current = false;
-      if (!res.ok) {
-        if (!silent) {
-          setError(res.message || 'Failed to load analytics');
-          setStatus('error');
+      try {
+        let res;
+        try {
+          res = await api.get(`/analytics/summary?range=${encodeURIComponent(normalizedRange)}`);
+        } catch (err) {
+          if (!silent) {
+            setError(err?.message || 'Network error');
+            setStatus('error');
+          }
+          return;
         }
-        return;
+        if (!res?.ok) {
+          if (!silent) {
+            setError(res?.message || 'Failed to load analytics');
+            setStatus('error');
+          }
+          return;
+        }
+        setSummary(res.data);
+        setStatus('ready');
+      } finally {
+        // CRITICAL: must always reset, otherwise all future fetches are
+        // blocked and the spinner stays stuck on 'loading' forever.
+        inflightRef.current = false;
       }
-      setSummary(res.data);
-      setStatus('ready');
     },
     [normalizedRange]
   );

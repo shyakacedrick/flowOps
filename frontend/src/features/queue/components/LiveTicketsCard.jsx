@@ -29,17 +29,22 @@ const STATUS_TONE = {
 };
 
 export default function LiveTicketsCard({ title = 'Live tickets', subtitle }) {
-  const { queues, status: qStatus } = useQueues();
+  // Enable polling as fallback to SSE so queues created in QueueManagerCard appear here
+  const { queues, status: qStatus } = useQueues(undefined, { pollMs: 8000 });
   const [selectedQueueId, setSelectedQueueId] = useState('');
   const confirm = useConfirm();
   const toast   = useToast();
 
-  // Default-select the first active queue once queues load.
+  // Keep `selectedQueueId` in sync with the live queue list:
+  //   - On first load (or after the list arrives) pick the first active one.
+  //   - If the chosen queue disappears (deleted elsewhere) or is a stale temp
+  //     id that never got reconciled, fall back to the first active queue.
   useEffect(() => {
-    if (!selectedQueueId && queues.length > 0) {
-      const firstActive = queues.find((q) => q.status === 'active') || queues[0];
-      setSelectedQueueId(firstActive._id);
-    }
+    if (queues.length === 0) return;
+    const stillThere = selectedQueueId && queues.some((q) => q._id === selectedQueueId);
+    if (stillThere) return;
+    const firstActive = queues.find((q) => q.status === 'active') || queues[0];
+    setSelectedQueueId(firstActive._id);
   }, [queues, selectedQueueId]);
 
   const selectedQueue = useMemo(
@@ -57,6 +62,22 @@ export default function LiveTicketsCard({ title = 'Live tickets', subtitle }) {
   const [creating, setCreating] = useState(false);
   const [formError, setFormError] = useState('');
   const [busyIds, setBusyIds] = useState(() => new Set());
+
+  // Defensive cleanup on unmount: reset any stuck mutation state
+  useEffect(() => {
+    return () => {
+      setCreating(false);
+      setBusyIds(new Set());
+    };
+  }, []);
+
+  // Defensive: any time the selected queue changes, clear stale form state.
+  // Prevents a stuck `creating: true` from a previous attempt (or a network
+  // failure outside the try/finally path) from disabling the form forever.
+  useEffect(() => {
+    setCreating(false);
+    setFormError('');
+  }, [selectedQueueId]);
 
   const isBusy = (id) => busyIds.has(id);
   const markBusy = (id) =>
@@ -93,12 +114,25 @@ export default function LiveTicketsCard({ title = 'Live tickets', subtitle }) {
     addOptimistic(optimistic);
     setCustomerName('');
 
-    const res = await ticketApi.create({
-      queueId: selectedQueueId,
-      customerName: trimmed,
-    });
-    setCreating(false);
-    endMutation();
+    // try/finally guarantees we always exit the "creating" state, even when
+    // the API client throws (network failure, refresh-token death, etc).
+    // Without this, a single failed attempt would leave `creating` stuck
+    // true and every subsequent click would early-return silently.
+    let res;
+    try {
+      res = await ticketApi.create({
+        queueId: selectedQueueId,
+        customerName: trimmed,
+      });
+    } catch (err) {
+      removeOptimistic(tempId);
+      setCustomerName(trimmed);
+      setFormError(err?.message || 'Network error — please try again.');
+      return;
+    } finally {
+      setCreating(false);
+      endMutation();
+    }
 
     if (!res.ok) {
       removeOptimistic(tempId);
@@ -117,9 +151,17 @@ export default function LiveTicketsCard({ title = 'Live tickets', subtitle }) {
     beginMutation();
     updateOptimistic(t._id, { status: nextStatus });
 
-    const res = await ticketApi.update(t._id, { status: nextStatus });
-    clearBusy(t._id);
-    endMutation();
+    let res;
+    try {
+      res = await ticketApi.update(t._id, { status: nextStatus });
+    } catch (err) {
+      updateOptimistic(t._id, { status: prev });
+      toast.error(err?.message || 'Network error — please try again.');
+      return;
+    } finally {
+      clearBusy(t._id);
+      endMutation();
+    }
 
     if (!res.ok) {
       updateOptimistic(t._id, { status: prev });
@@ -159,7 +201,7 @@ export default function LiveTicketsCard({ title = 'Live tickets', subtitle }) {
             disabled={qStatus !== 'ready' || queues.length === 0}
             className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-semibold text-slate-200 outline-none focus:border-cyan-400/40 disabled:opacity-50"
           >
-            {queues.length === 0 && <option>No queues yet</option>}
+            {queues.length === 0 && <option value="">No queues yet</option>}
             {queues.map((q) => (
               <option key={q._id} value={q._id} className="bg-slate-900">
                 {q.name} · {q.status}
@@ -178,20 +220,21 @@ export default function LiveTicketsCard({ title = 'Live tickets', subtitle }) {
         </div>
       </div>
 
-      {/* Join form */}
-      {selectedQueue?.status === 'active' && (
-        <form onSubmit={onJoin} className="mt-4 flex flex-col gap-2 sm:flex-row">
+      {/* Join form - always show when a queue is selected */}
+      {selectedQueue && (
+        <form onSubmit={onJoin} className="mt-4 flex flex-col gap-2 sm:flex-row" disabled={selectedQueue.status !== 'active'}>
           <input
             type="text"
             value={customerName}
             onChange={(e) => setCustomerName(e.target.value)}
             placeholder="Walk-in customer name"
             maxLength={120}
-            className="flex-1 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-white placeholder:text-slate-500 outline-none transition focus:border-primary/60 focus:bg-white/[0.05] focus:ring-2 focus:ring-primary/30"
+            disabled={selectedQueue.status !== 'active'}
+            className="flex-1 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-white placeholder:text-slate-500 outline-none transition focus:border-primary/60 focus:bg-white/[0.05] focus:ring-2 focus:ring-primary/30 disabled:opacity-50"
           />
           <button
             type="submit"
-            disabled={!customerName.trim() || creating}
+            disabled={!customerName.trim() || creating || selectedQueue.status !== 'active'}
             className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-cyan-400 to-blue-500 px-3.5 py-2 text-xs font-semibold text-slate-900 transition disabled:cursor-not-allowed disabled:opacity-50"
           >
             {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserPlus className="h-3.5 w-3.5" />}
@@ -203,6 +246,12 @@ export default function LiveTicketsCard({ title = 'Live tickets', subtitle }) {
       {selectedQueue && selectedQueue.status !== 'active' && (
         <p className="mt-4 rounded-xl border border-amber-400/20 bg-amber-500/[0.05] px-3 py-2 text-xs text-amber-200">
           Queue is <strong>{selectedQueue.status}</strong>. Resume it to add new tickets.
+        </p>
+      )}
+
+      {qStatus === 'ready' && queues.length === 0 && (
+        <p className="mt-4 rounded-xl border border-cyan-400/20 bg-cyan-500/[0.05] px-3 py-2 text-xs text-cyan-200">
+          No queues yet — create one below to start adding tickets.
         </p>
       )}
 

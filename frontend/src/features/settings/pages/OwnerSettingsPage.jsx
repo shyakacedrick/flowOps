@@ -1,10 +1,14 @@
-import { useEffect, useState } from 'react';
-import { Building2, Users, Save, Loader2, CheckCircle2, AlertCircle, User as UserIcon } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import {
+  Building2, Users, Save, Loader2, CheckCircle2, AlertCircle,
+  User as UserIcon, Upload, Trash2, ImagePlus,
+} from 'lucide-react';
 import HybridDashboardShell from '@/features/dashboard/components/HybridDashboardShell.jsx';
 import PageHeader from '@/shared/components/PageHeader.jsx';
 import { useAuth } from '@/app/providers/AuthProvider.jsx';
 import { useToast } from '@/shared/components/ToastProvider.jsx';
 import organizationApi from '@/services/organizationApi.js';
+import { resolveAssetUrl } from '@/services/api.js';
 import InvitesPanel from '@/features/settings/components/InvitesPanel.jsx';
 import ProfileSection from '@/features/settings/components/ProfileSection.jsx';
 
@@ -185,59 +189,169 @@ function BusinessSection() {
   }
 
   return (
-    <Card title="Business profile" subtitle="Public-facing information for your FlowOps account">
-      <form onSubmit={onSave} className="space-y-4">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Business name">
-            <input
-              className={inputCls}
-              value={form.name}
-              onChange={update('name')}
-              required
-              minLength={2}
-              maxLength={120}
+    <div className="space-y-5">
+      <LogoCard org={org} onUpdated={setOrg} />
+      <Card title="Business profile" subtitle="Public-facing information for your FlowOps account">
+        <form onSubmit={onSave} className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Business name">
+              <input
+                className={inputCls}
+                value={form.name}
+                onChange={update('name')}
+                required
+                minLength={2}
+                maxLength={120}
+              />
+            </Field>
+            <Field label="Industry">
+              <select className={inputCls} value={form.industry} onChange={update('industry')}>
+                <option value="clinic">Clinic / healthcare</option>
+                <option value="hospital">Hospital</option>
+                <option value="bank">Bank</option>
+                <option value="salon">Salon</option>
+                <option value="restaurant">Restaurant</option>
+                <option value="retail">Retail</option>
+                <option value="government">Government</option>
+                <option value="other">Other</option>
+              </select>
+            </Field>
+            <Field label="Plan" hint="Read-only — upgrades happen via billing">
+              <input className={inputCls} value={org.plan || 'starter'} disabled />
+            </Field>
+            <Field label="Organization ID" hint="Use this when inviting staff via the API">
+              <input className={inputCls} value={org._id} readOnly />
+            </Field>
+          </div>
+
+          <Field label="Description" hint="Shown on customer-facing pages">
+            <textarea
+              className={`${inputCls} min-h-[80px]`}
+              value={form.description}
+              onChange={update('description')}
+              maxLength={1000}
             />
           </Field>
-          <Field label="Industry">
-            <select className={inputCls} value={form.industry} onChange={update('industry')}>
-              <option value="clinic">Clinic / healthcare</option>
-              <option value="hospital">Hospital</option>
-              <option value="bank">Bank</option>
-              <option value="salon">Salon</option>
-              <option value="restaurant">Restaurant</option>
-              <option value="retail">Retail</option>
-              <option value="government">Government</option>
-              <option value="other">Other</option>
-            </select>
-          </Field>
-          <Field label="Plan" hint="Read-only — upgrades happen via billing">
-            <input className={inputCls} value={org.plan || 'starter'} disabled />
-          </Field>
-          <Field label="Organization ID" hint="Use this when inviting staff via the API">
-            <input className={inputCls} value={org._id} readOnly />
-          </Field>
+
+          <div className="flex justify-end">
+            <button
+              type="submit"
+              disabled={!isDirty || saving}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-cyan-400 to-blue-500 px-3.5 py-2 text-xs font-semibold text-slate-900 shadow-[0_0_22px_-6px_rgba(34,211,238,0.7)] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+              {saving ? 'Saving…' : 'Save changes'}
+            </button>
+          </div>
+        </form>
+      </Card>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Logo upload card
+// ─────────────────────────────────────────────────────────────────────────────
+const MAX_LOGO_BYTES = 2 * 1024 * 1024;
+const ACCEPTED_LOGO_MIMES = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml'];
+
+function LogoCard({ org, onUpdated }) {
+  const toast = useToast();
+  const inputRef = useRef(null);
+  const [busy, setBusy] = useState(false);
+
+  // Bust the browser cache when the URL changes (the path itself is unique,
+  // but on re-upload Express can serve a long max-age — so add a fingerprint).
+  const previewUrl = org?.logoUrl
+    ? `${resolveAssetUrl(org.logoUrl)}?v=${encodeURIComponent(org.updatedAt || '')}`
+    : null;
+
+  const handleFile = async (file) => {
+    if (!file) return;
+    if (!ACCEPTED_LOGO_MIMES.includes(file.type)) {
+      toast.error('Logo must be PNG, JPEG, WEBP, or SVG.');
+      return;
+    }
+    if (file.size > MAX_LOGO_BYTES) {
+      toast.error('Logo file is too large (max 2 MB).');
+      return;
+    }
+    setBusy(true);
+    const res = await organizationApi.uploadLogo(org._id, file);
+    setBusy(false);
+    if (!res.ok) {
+      toast.error(res.message || 'Upload failed.');
+      return;
+    }
+    onUpdated(res.data);
+    toast.success('Logo updated');
+  };
+
+  const handleRemove = async () => {
+    if (!org?.logoUrl || busy) return;
+    setBusy(true);
+    const res = await organizationApi.removeLogo(org._id);
+    setBusy(false);
+    if (!res.ok) {
+      toast.error(res.message || 'Failed to remove logo.');
+      return;
+    }
+    onUpdated(res.data);
+    toast.success('Logo removed');
+  };
+
+  return (
+    <Card title="Logo" subtitle="Displayed in the customer-facing pages and on every invite.">
+      <div className="flex flex-wrap items-center gap-5">
+        <div className="grid h-20 w-20 shrink-0 place-items-center overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04]">
+          {previewUrl ? (
+            <img
+              src={previewUrl}
+              alt={`${org.name || 'Organization'} logo`}
+              className="h-full w-full object-contain"
+            />
+          ) : (
+            <ImagePlus className="h-7 w-7 text-slate-500" aria-hidden="true" />
+          )}
         </div>
-
-        <Field label="Description" hint="Shown on customer-facing pages">
-          <textarea
-            className={`${inputCls} min-h-[80px]`}
-            value={form.description}
-            onChange={update('description')}
-            maxLength={1000}
+        <div className="flex flex-1 flex-wrap items-center gap-2">
+          <input
+            ref={inputRef}
+            type="file"
+            accept={ACCEPTED_LOGO_MIMES.join(',')}
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              // Reset so the same file selected twice still re-fires onChange.
+              e.target.value = '';
+              if (f) handleFile(f);
+            }}
           />
-        </Field>
-
-        <div className="flex justify-end">
           <button
-            type="submit"
-            disabled={!isDirty || saving}
+            type="button"
+            onClick={() => inputRef.current?.click()}
+            disabled={busy}
             className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-cyan-400 to-blue-500 px-3.5 py-2 text-xs font-semibold text-slate-900 shadow-[0_0_22px_-6px_rgba(34,211,238,0.7)] disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-            {saving ? 'Saving…' : 'Save changes'}
+            {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+            {busy ? 'Working…' : previewUrl ? 'Replace logo' : 'Upload logo'}
           </button>
+          {previewUrl && (
+            <button
+              type="button"
+              onClick={handleRemove}
+              disabled={busy}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Remove
+            </button>
+          )}
+          <p className="basis-full text-[11px] text-slate-500">
+            PNG, JPEG, WEBP, or SVG · 2 MB max.
+          </p>
         </div>
-      </form>
+      </div>
     </Card>
   );
 }

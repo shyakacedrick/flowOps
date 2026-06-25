@@ -19,11 +19,18 @@
 //  trusting the live channel.
 // ============================================================================
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import queueApi from '@/services/queueApi.js';
 import { useOrgEventStream } from '@/shared/hooks/useEventStream.js';
 
 export function useQueues(params, { pollMs = 0 } = {}) {
+  // Stabilize params by its serialized value so callers passing inline
+  // objects (e.g. useQueues({}, ...)) don't trigger infinite re-fetches.
+  // JSON.stringify is sufficient here — params is a small filter object.
+  const paramsKey = useMemo(() => JSON.stringify(params || null), [params]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const stableParams = useMemo(() => params, [paramsKey]);
+
   const [queues, setQueues] = useState([]);
   const [status, setStatus] = useState('idle');
   const [error, setError] = useState(null);
@@ -37,10 +44,21 @@ export function useQueues(params, { pollMs = 0 } = {}) {
         setStatus('loading');
         setError(null);
       }
-      const res = await queueApi.list(params);
-      if (!res.ok) {
+      let res;
+      try {
+        res = await queueApi.list(stableParams);
+      } catch (err) {
+        // Network failure / abort. The status MUST transition out of
+        // 'loading' or the spinner spins forever.
         if (!silent) {
-          setError(res.message || 'Failed to load queues');
+          setError(err?.message || 'Network error');
+          setStatus('error');
+        }
+        return;
+      }
+      if (!res?.ok) {
+        if (!silent) {
+          setError(res?.message || 'Failed to load queues');
           setStatus('error');
         }
         return;
@@ -54,7 +72,7 @@ export function useQueues(params, { pollMs = 0 } = {}) {
       setQueues(Array.isArray(res.data) ? res.data : []);
       setStatus('ready');
     },
-    [params]
+    [stableParams]
   );
 
   const refresh = useCallback(() => fetchOnce({ silent: false }), [fetchOnce]);
@@ -96,7 +114,15 @@ export function useQueues(params, { pollMs = 0 } = {}) {
   useEffect(() => {
     const offCreated = stream.on('queue:created', (queue) => {
       if (!queue?._id) return;
-      setQueues((prev) => (prev.some((q) => q._id === queue._id) ? prev : [queue, ...prev]));
+      setQueues((prev) => {
+        // Already have the real record? Just drop any matching optimistic placeholder.
+        if (prev.some((q) => q._id === queue._id)) {
+          return prev.filter((q) => !(q._optimistic && q._id.startsWith('temp:') && q.name === queue.name));
+        }
+        // First sighting — strip any matching optimistic placeholder, then prepend.
+        const cleaned = prev.filter((q) => !(q._optimistic && q._id.startsWith('temp:') && q.name === queue.name));
+        return [queue, ...cleaned];
+      });
     });
     const offUpdated = stream.on('queue:updated', (queue) => {
       if (!queue?._id) return;
@@ -129,6 +155,13 @@ export function useQueues(params, { pollMs = 0 } = {}) {
     inflightRef.current = Math.max(0, inflightRef.current - 1);
   }, []);
 
+  // Cleanup on unmount: reset inflightRef in case a mutation was in-flight
+  useEffect(() => {
+    return () => {
+      inflightRef.current = 0;
+    };
+  }, []);
+
   const addQueueOptimistic = useCallback((queue) => {
     setQueues((prev) => [queue, ...prev]);
   }, []);
@@ -144,9 +177,22 @@ export function useQueues(params, { pollMs = 0 } = {}) {
   }, []);
 
   // Swap an optimistic placeholder for the real server-issued record once
-  // the create call resolves.
+  // the create call resolves. If SSE already inserted the real record, we
+  // just drop the placeholder to avoid a duplicate row. If response parsing
+  // failed (real._id is missing), just remove the temp placeholder.
   const replaceQueue = useCallback((tempId, real) => {
-    setQueues((prev) => prev.map((q) => (q._id === tempId ? real : q)));
+    if (!real?._id) {
+      // Response parsing failed - just remove the temp placeholder
+      setQueues((prev) => prev.filter((q) => q._id !== tempId));
+      return;
+    }
+    setQueues((prev) => {
+      const realAlreadyPresent = prev.some((q) => q._id === real._id);
+      if (realAlreadyPresent) {
+        return prev.filter((q) => q._id !== tempId);
+      }
+      return prev.map((q) => (q._id === tempId ? real : q));
+    });
   }, []);
 
   return {

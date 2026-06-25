@@ -198,6 +198,7 @@ function MobileSidebar({ activeKey, onNav, onClose, onSignOut, workspace }) {
           <BrandBlock workspace={workspace} inline />
           <button
             onClick={onClose}
+            aria-label="Close menu"
             className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 text-slate-400"
           >
             <X className="h-4 w-4" />

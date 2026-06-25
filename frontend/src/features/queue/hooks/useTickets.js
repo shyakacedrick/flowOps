@@ -35,10 +35,19 @@ export function useTickets(queueId, { pollMs = 0, status } = {}) {
         setFetchStatus('loading');
         setError(null);
       }
-      const res = await ticketApi.list({ queueId, status });
-      if (!res.ok) {
+      let res;
+      try {
+        res = await ticketApi.list({ queueId, status });
+      } catch (err) {
         if (!silent) {
-          setError(res.message || 'Failed to load tickets');
+          setError(err?.message || 'Network error');
+          setFetchStatus('error');
+        }
+        return;
+      }
+      if (!res?.ok) {
+        if (!silent) {
+          setError(res?.message || 'Failed to load tickets');
           setFetchStatus('error');
         }
         return;
@@ -91,7 +100,15 @@ export function useTickets(queueId, { pollMs = 0, status } = {}) {
 
     const offCreated = stream.on('ticket:created', (t) => {
       if (!sameQueue(t) || !matchesStatusFilter(t)) return;
-      setTickets((prev) => (prev.some((x) => x._id === t._id) ? prev : [...prev, t]));
+      setTickets((prev) => {
+        // Already have the real ticket? Drop any matching optimistic row.
+        if (prev.some((x) => x._id === t._id)) {
+          return prev.filter((x) => !(x._optimistic && x._id.startsWith('temp:') && x.customerName === t.customerName));
+        }
+        // First sighting — strip any matching optimistic, then append.
+        const cleaned = prev.filter((x) => !(x._optimistic && x._id.startsWith('temp:') && x.customerName === t.customerName));
+        return [...cleaned, t];
+      });
     });
     const offUpdated = stream.on('ticket:updated', (t) => {
       if (!sameQueue(t)) return;
@@ -125,6 +142,13 @@ export function useTickets(queueId, { pollMs = 0, status } = {}) {
     inflightRef.current = Math.max(0, inflightRef.current - 1);
   }, []);
 
+  // Cleanup on unmount: reset inflightRef in case a mutation was in-flight
+  useEffect(() => {
+    return () => {
+      inflightRef.current = 0;
+    };
+  }, []);
+
   const addOptimistic = useCallback((ticket) => {
     setTickets((prev) => [...prev, ticket]);
   }, []);
@@ -138,7 +162,18 @@ export function useTickets(queueId, { pollMs = 0, status } = {}) {
   }, []);
 
   const replace = useCallback((tempId, real) => {
-    setTickets((prev) => prev.map((t) => (t._id === tempId ? real : t)));
+    if (!real?._id) {
+      // Response parsing failed - just remove the temp placeholder
+      setTickets((prev) => prev.filter((t) => t._id !== tempId));
+      return;
+    }
+    setTickets((prev) => {
+      const realAlreadyPresent = prev.some((t) => t._id === real._id);
+      if (realAlreadyPresent) {
+        return prev.filter((t) => t._id !== tempId);
+      }
+      return prev.map((t) => (t._id === tempId ? real : t));
+    });
   }, []);
 
   return {

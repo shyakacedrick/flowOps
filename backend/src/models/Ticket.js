@@ -51,6 +51,27 @@ const ticketSchema = new mongoose.Schema(
       type: Date,
       default: Date.now,
     },
+    /**
+     * Set when a ticket transitions to `serving`. Used together with
+     * `servedAt` to compute true handle-time (serve duration) and per-staff
+     * efficiency rankings, instead of conflating it with wait-time.
+     */
+    servingStartedAt: {
+      type: Date,
+      default: null,
+    },
+    /**
+     * User who picked up the ticket (set on transition to `serving`).
+     * Lets analytics attribute served counts and handle-time to the
+     * specific staff member. Null for public-joined tickets that have
+     * never been called by anyone.
+     */
+    servedById: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+      index: true,
+    },
     servedAt: {
       type: Date,
       default: null,

@@ -1,8 +1,8 @@
 # CI: lint + test on every PR and on pushes to main.
 #
 # Backend uses an in-process MongoDB (mongodb-memory-server) so we don't
-# need a service container for tests. Frontend just builds — its hooks
-# aren't unit-tested yet (Phase 15.2 deferred).
+# need a service container for tests. Frontend now has hook tests under
+# vitest + jsdom (Phase 15.2 shipped 2026-06-24).
 name: ci
 
 on:
@@ -65,6 +65,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Run unit + hook tests
+        run: npm test
 
       - name: Build
         run: npm run build

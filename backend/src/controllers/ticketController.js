@@ -138,7 +138,26 @@ export const updateTicket = asyncHandler(async (req, res) => {
         );
       }
       ticket.status = next;
-      if (next === TICKET_STATUSES.SERVED) ticket.servedAt = new Date();
+      // Attribute the ticket to the staff member who picked it up. We
+      // record both the timestamp (for accurate handle-time) and the
+      // user id (for per-staff rankings). `servedById` sticks even if
+      // the ticket later transitions to served/skipped/cancelled.
+      if (next === TICKET_STATUSES.SERVING) {
+        ticket.servingStartedAt = new Date();
+        if (!ticket.servedById && req.user?._id) {
+          ticket.servedById = req.user._id;
+        }
+      }
+      if (next === TICKET_STATUSES.SERVED) {
+        ticket.servedAt = new Date();
+        // Edge case: a ticket may go waiting → cancelled/skipped without
+        // a serving step (still attribute to the actor for audit), but the
+        // handle-time logic gates on both servingStartedAt + servedAt so
+        // those won't poison avgHandleMins.
+        if (!ticket.servedById && req.user?._id) {
+          ticket.servedById = req.user._id;
+        }
+      }
       statusChanged = true;
     }
   }

@@ -2,6 +2,7 @@ import http from 'node:http';
 import app from './app.js';
 import env from './config/env.js';
 import { connectDatabase, disconnectDatabase } from './config/database.js';
+import { initSentry, captureException } from './observability/sentry.js';
 
 /**
  * Process entry point. Connects to MongoDB, then starts the HTTP server.
@@ -9,6 +10,8 @@ import { connectDatabase, disconnectDatabase } from './config/database.js';
  * to the same instance without restructuring.
  */
 const start = async () => {
+  // Initialize Sentry FIRST so any startup error is captured.
+  initSentry();
   await connectDatabase();
 
   const server = http.createServer(app);

@@ -19,6 +19,20 @@ const BASE_URL =
   (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL) ||
   'http://localhost:5000/api';
 
+// Static assets (uploads/) live OUTSIDE the /api prefix on the backend
+// origin. Strip the trailing /api (or /api/) so callers can build URLs
+// like `${ASSET_BASE_URL}/uploads/org-logos/abc.png` regardless of how the
+// API path is configured.
+export const ASSET_BASE_URL = BASE_URL.replace(/\/api\/?$/, '');
+
+/** Convert a relative upload path returned by the API into an absolute URL. */
+export function resolveAssetUrl(relativeOrAbsolute) {
+  if (!relativeOrAbsolute) return null;
+  if (/^https?:\/\//i.test(relativeOrAbsolute)) return relativeOrAbsolute;
+  if (relativeOrAbsolute.startsWith('/')) return `${ASSET_BASE_URL}${relativeOrAbsolute}`;
+  return `${ASSET_BASE_URL}/${relativeOrAbsolute}`;
+}
+
 import { STORAGE_KEYS } from '@/shared/constants/storage.js';
 const TOKEN_KEY = STORAGE_KEYS.TOKEN;
 

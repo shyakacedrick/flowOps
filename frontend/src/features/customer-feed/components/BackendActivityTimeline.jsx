@@ -60,6 +60,7 @@ export default function BackendActivityTimeline({
           onClick={refresh}
           disabled={status === 'loading'}
           title="Refresh"
+          aria-label="Refresh activity"
           className="grid h-7 w-7 place-items-center rounded-lg border border-white/10 bg-white/[0.04] text-slate-300 transition hover:border-white/20 hover:text-white disabled:opacity-50"
         >
           <RefreshCw className={`h-3.5 w-3.5 ${status === 'loading' ? 'animate-spin' : ''}`} />

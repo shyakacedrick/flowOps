@@ -10,7 +10,7 @@
 //  comes back from queueApi.list().
 // ============================================================================
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Loader2, Plus, Pause, Play, Trash2, RefreshCw, AlertCircle, QrCode, X, Copy, Check, ExternalLink } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { useQueues } from '@/features/queue/hooks/useQueues.js';
@@ -29,6 +29,7 @@ export default function QueueManagerCard({
   title = 'Queues',
   subtitle = 'Live from the backend · org-scoped to your workspace',
 }) {
+  // Enable polling as fallback to SSE so other components see new queues quickly
   const {
     queues,
     status,
@@ -40,7 +41,7 @@ export default function QueueManagerCard({
     updateQueueOptimistic,
     removeQueueOptimistic,
     replaceQueue,
-  } = useQueues();
+  } = useQueues(undefined, { pollMs: 8000 });
   const [name, setName] = useState('');
   const [creating, setCreating] = useState(false);
   const [busyIds, setBusyIds] = useState(() => new Set());
@@ -48,6 +49,22 @@ export default function QueueManagerCard({
   const [shareQueue, setShareQueue] = useState(null);
   const confirm = useConfirm();
   const toast   = useToast();
+
+  // Defensive cleanup on unmount: reset any stuck mutation state
+  useEffect(() => {
+    return () => {
+      setCreating(false);
+      setBusyIds(new Set());
+    };
+  }, []);
+
+  // Defensive: clear any leftover form state on mount. Prevents a stuck
+  // `creating: true` from a previous render (e.g. HMR, or an exception
+  // outside the try/finally path) from disabling the form forever.
+  useEffect(() => {
+    setCreating(false);
+    setFormError('');
+  }, []);
 
   const isBusy = (id) => busyIds.has(id);
   const markBusy = (id) =>
@@ -84,9 +101,22 @@ export default function QueueManagerCard({
     addQueueOptimistic(optimistic);
     setName('');
 
-    const res = await queueApi.create({ name: trimmed });
-    setCreating(false);
-    endMutation();
+    // try/finally guarantees `creating` flips back to false even when the
+    // API client throws (network failure, refresh-token death, etc).
+    // Without this, a single failed attempt would leave the form
+    // permanently disabled until the user reloads the page.
+    let res;
+    try {
+      res = await queueApi.create({ name: trimmed });
+    } catch (err) {
+      removeQueueOptimistic(tempId);
+      setName(trimmed);
+      setFormError(err?.message || 'Network error — please try again.');
+      return;
+    } finally {
+      setCreating(false);
+      endMutation();
+    }
 
     if (!res.ok) {
       // Rollback: drop the placeholder and surface the error.
@@ -110,9 +140,17 @@ export default function QueueManagerCard({
     // Flip the badge immediately.
     updateQueueOptimistic(q._id, { status: nextStatus });
 
-    const res = await queueApi.update(q._id, { status: nextStatus });
-    clearBusy(q._id);
-    endMutation();
+    let res;
+    try {
+      res = await queueApi.update(q._id, { status: nextStatus });
+    } catch (err) {
+      updateQueueOptimistic(q._id, { status: prevStatus });
+      toast.error(err?.message || 'Network error — please try again.');
+      return;
+    } finally {
+      clearBusy(q._id);
+      endMutation();
+    }
 
     if (!res.ok) {
       // Rollback the badge.
@@ -139,9 +177,17 @@ export default function QueueManagerCard({
     beginMutation();
     removeQueueOptimistic(q._id);
 
-    const res = await queueApi.remove(q._id);
-    clearBusy(q._id);
-    endMutation();
+    let res;
+    try {
+      res = await queueApi.remove(q._id);
+    } catch (err) {
+      addQueueOptimistic(snapshot);
+      toast.error(err?.message || 'Network error — please try again.');
+      return;
+    } finally {
+      clearBusy(q._id);
+      endMutation();
+    }
 
     if (!res.ok) {
       // Re-insert at the top — ordering after rollback is best-effort.
@@ -289,6 +335,7 @@ export default function QueueManagerCard({
                       onClick={() => onDelete(q)}
                       disabled={isBusy(q._id) || q._optimistic}
                       title="Delete queue"
+                      aria-label={`Delete queue ${q.name || ''}`.trim()}
                       className="grid h-7 w-7 place-items-center rounded-lg border border-white/10 bg-white/[0.04] text-rose-300 transition hover:border-rose-400/40 hover:bg-rose-500/10 disabled:opacity-40"
                     >
                       <Trash2 className="h-3.5 w-3.5" />

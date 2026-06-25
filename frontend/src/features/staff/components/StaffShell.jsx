@@ -199,7 +199,7 @@ function MobileSidebar({ nav, activeKey, onNav, onClose, onSignOut, shiftPaused,
       >
         <div className="flex items-center justify-between px-4 pt-5">
           <BrandBlock workspace={workspace} inline />
-          <button onClick={onClose} className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 text-slate-400">
+          <button onClick={onClose} aria-label="Close menu" className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 text-slate-400">
             <X className="h-4 w-4" />
           </button>
         </div>

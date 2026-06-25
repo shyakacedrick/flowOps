@@ -8,6 +8,8 @@ import {
   getOrganization,
   updateOrganization,
   deleteOrganization,
+  uploadLogo,
+  deleteLogo,
 } from '../controllers/organizationController.js';
 
 const router = Router();
@@ -30,6 +32,19 @@ router.delete(
   '/:id',
   authorizeRoles(USER_ROLES.PLATFORM_ADMIN),
   deleteOrganization
+);
+
+// Logo upload — owner or admin only (permission enforced inside the
+// controller so we can fall through `uploadLogo`'s multer middleware first).
+router.post(
+  '/:id/logo',
+  authorizeRoles(USER_ROLES.PLATFORM_ADMIN, USER_ROLES.BUSINESS_OWNER),
+  ...uploadLogo,
+);
+router.delete(
+  '/:id/logo',
+  authorizeRoles(USER_ROLES.PLATFORM_ADMIN, USER_ROLES.BUSINESS_OWNER),
+  deleteLogo,
 );
 
 export default router;

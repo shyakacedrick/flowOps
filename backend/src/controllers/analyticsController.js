@@ -28,6 +28,9 @@
 //      },
 //      throughputByHour: [     // ALWAYS exactly `buckets` entries, oldest → newest
 //        { bucket: 0, joined: 5, served: 4, abandoned: 1, label: '14:00' }, ...
+//      ],
+//      byStaff: [              // top 10 operators by served, sorted desc
+//        { userId, name, email, role, served, avgHandleMins }, ...
 //      ]
 //    }
 // ============================================================================
@@ -36,7 +39,7 @@ import asyncHandler from '../utils/asyncHandler.js';
 import ApiError from '../utils/ApiError.js';
 import { success } from '../utils/apiResponse.js';
 import Ticket, { TICKET_STATUSES } from '../models/Ticket.js';
-import { USER_ROLES } from '../models/User.js';
+import User, { USER_ROLES } from '../models/User.js';
 
 const RANGE_CONFIG = {
   '24h': { ms: 24 * 60 * 60 * 1000,        bucketMs: 60 * 60 * 1000,        buckets: 24 },
@@ -78,7 +81,7 @@ export const getSummary = asyncHandler(async (req, res) => {
   // Soft-deleted tickets are excluded — they're no longer real events.
   const windowed = await Ticket.find(
     { ...scope, deletedAt: null, joinedAt: { $gte: since } },
-    'status joinedAt servedAt queueId'
+    'status joinedAt servedAt servingStartedAt servedById queueId'
   ).lean();
 
   // ── Previous-equal-length window, used only for delta comparisons ────
@@ -107,6 +110,11 @@ export const getSummary = asyncHandler(async (req, res) => {
   let svcSum = 0, svcCount = 0;
   const perHour = new Array(24).fill(0);
   const perQueue = new Map();
+  // Per-staff rollup: { userId → { served, handleMsSum, handleMsCount } }.
+  // Only SERVED tickets with a known servedById contribute. Handle-time
+  // requires both servingStartedAt and servedAt to be set; legacy rows
+  // without servingStartedAt are counted as served but not in the average.
+  const perStaff = new Map();
 
   // Pre-build bucket array.
   const buckets = new Array(cfg.buckets).fill(0).map((_, i) => ({
@@ -159,6 +167,22 @@ export const getSummary = asyncHandler(async (req, res) => {
         // tracking lands when we record callAt; until then svc == wait.
         waitSum += waitMs; waitCount += 1;
         svcSum += waitMs;  svcCount += 1;
+      }
+
+      // Per-staff attribution. Skip if no operator was recorded (legacy
+      // rows pre-servedById, or admin-bulk-actions).
+      if (t.servedById) {
+        const key = String(t.servedById);
+        const entry = perStaff.get(key) || { served: 0, handleMsSum: 0, handleMsCount: 0 };
+        entry.served += 1;
+        if (t.servingStartedAt) {
+          const handleMs = new Date(t.servedAt) - new Date(t.servingStartedAt);
+          if (handleMs >= 0) {
+            entry.handleMsSum   += handleMs;
+            entry.handleMsCount += 1;
+          }
+        }
+        perStaff.set(key, entry);
       }
     }
   }
@@ -216,6 +240,35 @@ export const getSummary = asyncHandler(async (req, res) => {
     else                  waitBuckets.critical += 1;
   }
 
+  // ── Per-staff rankings ──────────────────────────────────────────────
+  // Resolve user names in one round-trip. Sort by served desc, cap at 10.
+  let byStaff = [];
+  if (perStaff.size) {
+    const userIds = [...perStaff.keys()];
+    const users = await User.find(
+      { _id: { $in: userIds } },
+      'name email role'
+    ).lean();
+    const userById = new Map(users.map((u) => [String(u._id), u]));
+    byStaff = userIds
+      .map((id) => {
+        const e = perStaff.get(id);
+        const u = userById.get(id);
+        return {
+          userId:        id,
+          name:          u?.name  || 'Unknown',
+          email:         u?.email || null,
+          role:          u?.role  || null,
+          served:        e.served,
+          avgHandleMins: e.handleMsCount
+            ? round1(e.handleMsSum / e.handleMsCount / 60000)
+            : null,
+        };
+      })
+      .sort((a, b) => b.served - a.served)
+      .slice(0, 10);
+  }
+
   return success(res, {
     range: rangeKey,
     since: since.toISOString(),
@@ -236,6 +289,7 @@ export const getSummary = asyncHandler(async (req, res) => {
     waitBuckets,
     previous,
     throughputByHour: buckets,
+    byStaff,
   });
 });
 

@@ -10,6 +10,7 @@ import asyncHandler from '../utils/asyncHandler.js';
 import { success } from '../utils/apiResponse.js';
 import Activity, { ACTIVITY_TYPES } from '../models/Activity.js';
 import { USER_ROLES } from '../models/User.js';
+import mongoose from 'mongoose';
 
 /**
  * Visibility rules (matches the org-scope pattern used in other controllers):
@@ -24,8 +25,11 @@ const scopeFilter = (user, base = {}) => {
 
 /**
  * GET /api/activities
- * Optional filters:  ?type=ticket_created&limit=50
- * Always sorted newest-first; default & max limit 100.
+ * Optional filters:
+ *   ?type=ticket_created   — restrict to one activity type
+ *   ?actorId=<userId>      — restrict to a single actor (for per-user audit)
+ *   ?limit=50              — 1..200, default 50
+ * Always sorted newest-first.
  */
 export const listActivities = asyncHandler(async (req, res) => {
   const filter = {};
@@ -38,7 +42,14 @@ export const listActivities = asyncHandler(async (req, res) => {
     filter.type = req.query.type;
   }
 
-  const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 100);
+  if (req.query.actorId) {
+    if (!mongoose.Types.ObjectId.isValid(req.query.actorId)) {
+      return success(res, []);
+    }
+    filter.actorId = req.query.actorId;
+  }
+
+  const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 200);
 
   const rows = await Activity.find(scopeFilter(req.user, filter))
     .sort({ createdAt: -1 })

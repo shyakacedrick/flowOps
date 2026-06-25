@@ -16,6 +16,7 @@ import PageHeader, { StatCard } from '@/shared/components/PageHeader.jsx';
 import CustomerFlowChart from '@/features/analytics/components/CustomerFlowChart.jsx';
 import useAnalyticsSummary from '@/features/analytics/hooks/useAnalyticsSummary.js';
 import useQueues from '@/features/queue/hooks/useQueues.js';
+import { toCsv, downloadCsv } from '@/shared/utils/csv.js';
 
 const RANGE_LABELS = { '24h': 'Today', '7d': 'Last 7 days', '30d': 'Last 30 days' };
 
@@ -44,6 +45,57 @@ export default function AnalyticsPage() {
 
   const isEmpty = status === 'ready' && joined === 0;
 
+  // Build a CSV of the per-bucket throughput plus a summary row so the
+  // download is self-describing. Disabled while loading or empty.
+  const handleExport = () => {
+    const ts = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-');
+    const filename = `flowops-analytics-${range}-${ts}.csv`;
+
+    const summaryCsv = toCsv(
+      [{
+        range,
+        rangeLabel: RANGE_LABELS[range],
+        joined,
+        served,
+        abandoned: (summary?.totals?.abandoned ?? 0),
+        avgWaitMins,
+        peakHour: peakHour != null ? String(peakHour).padStart(2, '0') : '',
+        peakCount,
+        throughputPerBucket: throughputPerHour,
+        exportedAt: new Date().toISOString(),
+      }],
+      [
+        { key: 'range',                label: 'range' },
+        { key: 'rangeLabel',           label: 'range_label' },
+        { key: 'joined',               label: 'joined' },
+        { key: 'served',               label: 'served' },
+        { key: 'abandoned',            label: 'abandoned' },
+        { key: 'avgWaitMins',          label: 'avg_wait_minutes' },
+        { key: 'peakHour',             label: 'peak_hour' },
+        { key: 'peakCount',            label: 'peak_count' },
+        { key: 'throughputPerBucket',  label: 'throughput_per_bucket' },
+        { key: 'exportedAt',           label: 'exported_at_iso' },
+      ],
+    );
+
+    const bucketsCsv = toCsv(
+      buckets,
+      [
+        { key: 'bucket',     label: 'bucket' },
+        { key: 'label',      label: 'label' },
+        { key: 'joined',     label: 'joined' },
+        { key: 'served',     label: 'served' },
+        { key: 'abandoned',  label: 'abandoned' },
+      ],
+    );
+
+    // Two stacked tables in one file — Excel handles the blank row fine.
+    const body = `# FlowOps Analytics export\r\n# range=${range}\r\n\r\n${summaryCsv}\r\n\r\n${bucketsCsv}\r\n`;
+    downloadCsv(filename, body);
+  };
+
+  const exportDisabled = status === 'loading' || isEmpty || !summary;
+
   return (
     <HybridDashboardShell>
       <div className="space-y-6 pt-2">
@@ -53,7 +105,12 @@ export default function AnalyticsPage() {
           subtitle="Long-term performance, peak demand, and operational trend reports."
           crumbs={[{ label: 'Intelligence' }, { label: 'Analytics' }]}
           actions={
-            <button className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-2 text-xs font-semibold text-slate-200 hover:bg-white/[0.08]">
+            <button
+              onClick={handleExport}
+              disabled={exportDisabled}
+              title={exportDisabled ? 'Nothing to export yet' : 'Download CSV report'}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-2 text-xs font-semibold text-slate-200 hover:bg-white/[0.08] disabled:opacity-50 disabled:hover:bg-white/[0.04]"
+            >
               <Download className="h-3.5 w-3.5" /> Export report
             </button>
           }

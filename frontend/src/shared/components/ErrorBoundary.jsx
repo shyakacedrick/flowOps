@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { captureException } from '@/observability/sentry.js';
 
 /**
  * Top-level error boundary. Catches any runtime error in the tree below it
@@ -15,10 +16,11 @@ export default class ErrorBoundary extends Component {
   }
 
   componentDidCatch(error, info) {
-    // In production you would forward to an error-reporting service here.
     if (typeof console !== 'undefined') {
       console.error('[FlowOps] Uncaught error:', error, info.componentStack);
     }
+    // Forward to Sentry. No-op when VITE_SENTRY_DSN is unset.
+    captureException(error, { tags: { boundary: 'top-level' } });
   }
 
   handleReset = () => {

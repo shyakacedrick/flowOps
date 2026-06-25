@@ -67,6 +67,15 @@ const organizationSchema = new mongoose.Schema(
       maxlength: [500, 'Suspension reason must be at most 500 characters'],
       default: '',
     },
+    // Public URL (relative path under /uploads) for the org's logo, set by
+    // POST /api/organizations/:id/logo. Null means "show the auto-generated
+    // monogram fallback". We deliberately store only the URL, not the bytes,
+    // so the asset can be moved to S3/CDN later without a schema change.
+    logoUrl: {
+      type: String,
+      trim: true,
+      default: null,
+    },
   },
   {
     timestamps: true,

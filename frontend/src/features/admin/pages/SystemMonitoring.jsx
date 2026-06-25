@@ -1,55 +1,25 @@
 // ============================================================================
 //  Admin · System Monitoring — real subsystem probes + live activity feed
 // ----------------------------------------------------------------------------
-//  Health of the five core API surfaces is measured by pinging each one
-//  every 30s and recording the p50 latency. The "live monitoring feed"
-//  binds to /api/activities (platform-wide for admins) instead of fake
-//  log lines.
+//  Health of the five core API surfaces is measured by `useSystemHealth`,
+//  which is the single source of truth shared with the AdminSidebar pill
+//  (one probe loop, many consumers). The "live monitoring feed" binds to
+//  /api/activities (platform-wide for admins) instead of fake log lines.
 // ============================================================================
 
-import { useEffect, useMemo, useState } from 'react';
-import {
-  Activity, Server, Database, Bell, Lock, ShieldAlert, RefreshCw,
-} from 'lucide-react';
+import { useMemo } from 'react';
+import { ShieldAlert, RefreshCw, Activity } from 'lucide-react';
 import AdminLayout from '@/features/admin/components/AdminShell.jsx';
 import PageHeader, { StatCard } from '@/shared/components/PageHeader.jsx';
-import { api } from '@/services/api.js';
 import { useActivities } from '@/features/customer-feed/hooks/useActivities.js';
-
-// ── Probes ──────────────────────────────────────────────────────────────────
-const PROBES = [
-  { name: 'API Gateway',          icon: Server,   path: '/auth/me' },
-  { name: 'Queue Engine',         icon: Activity, path: '/queues?limit=1' },
-  { name: 'Analytics Engine',     icon: Database, path: '/analytics/summary?range=24h' },
-  { name: 'Notification Service', icon: Bell,     path: '/activities?limit=1' },
-  { name: 'Authentication',       icon: Lock,     path: '/auth/me' },
-];
-
-function classify(latencyMs, ok) {
-  if (!ok)               return 'incident';
-  if (latencyMs >= 1200) return 'incident';
-  if (latencyMs >= 400)  return 'degraded';
-  return 'operational';
-}
+import useSystemHealth from '@/features/admin/hooks/useSystemHealth.js';
 
 const STATUS_STYLE = {
   operational: { text: 'Operational', dot: 'bg-emerald-400', ring: 'ring-emerald-400/30', bg: 'bg-emerald-500/10', col: 'text-emerald-300' },
   degraded:    { text: 'Degraded',    dot: 'bg-amber-400',   ring: 'ring-amber-400/30',   bg: 'bg-amber-500/10',   col: 'text-amber-300' },
   incident:    { text: 'Incident',    dot: 'bg-rose-400',    ring: 'ring-rose-400/30',    bg: 'bg-rose-500/10',    col: 'text-rose-300' },
+  unknown:     { text: 'Probing…',   dot: 'bg-slate-400',   ring: 'ring-slate-400/30',   bg: 'bg-slate-500/10',   col: 'text-slate-300' },
 };
-
-async function probe({ name, icon, path }) {
-  const t0 = performance.now();
-  let ok = false;
-  try {
-    const res = await api.get(path);
-    ok = !!res?.ok;
-  } catch {
-    ok = false;
-  }
-  const latency = Math.round(performance.now() - t0);
-  return { name, icon, latency, status: classify(latency, ok) };
-}
 
 // Map activity types → live-feed kind for colour-coding.
 const ACTIVITY_KIND = {
@@ -68,33 +38,7 @@ const ACTIVITY_KIND = {
 const KIND_DOT = { info: 'bg-cyan-400', warn: 'bg-amber-400', success: 'bg-emerald-400', error: 'bg-rose-400' };
 
 export default function SystemMonitoring() {
-  const [components, setComponents] = useState(
-    PROBES.map((p) => ({ name: p.name, icon: p.icon, latency: 0, status: 'operational' })),
-  );
-  const [lastChecked, setLastChecked] = useState(null);
-  const [checking,    setChecking]    = useState(false);
-
-  const runAll = async () => {
-    setChecking(true);
-    const next = await Promise.all(PROBES.map(probe));
-    setComponents(next);
-    setLastChecked(new Date());
-    setChecking(false);
-  };
-
-  useEffect(() => {
-    let cancelled = false;
-    const tick = async () => {
-      if (cancelled) return;
-      await runAll();
-    };
-    tick();
-    const id = setInterval(() => {
-      if (document.visibilityState === 'visible') tick();
-    }, 30_000);
-    return () => { cancelled = true; clearInterval(id); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const { components, overall: overallStatus, lastChecked, checking, recheck } = useSystemHealth();
 
   // Derived KPIs.
   const healthyCount  = components.filter((c) => c.status === 'operational').length;
@@ -106,9 +50,6 @@ export default function SystemMonitoring() {
     const idx = Math.min(lats.length - 1, Math.floor(lats.length * 0.95));
     return lats[idx];
   }, [components]);
-  const overallStatus = incidentCount > 0 ? 'incident'
-                       : degradedCount > 0 ? 'degraded'
-                       : 'operational';
 
   const { activities } = useActivities({ limit: 25, pollMs: 5000 });
 
@@ -122,7 +63,7 @@ export default function SystemMonitoring() {
           crumbs={[{ label: 'Admin' }, { label: 'System Monitoring' }]}
           actions={(
             <button
-              onClick={runAll}
+              onClick={recheck}
               disabled={checking}
               className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-semibold text-slate-200 hover:bg-white/[0.08] disabled:opacity-50"
             >

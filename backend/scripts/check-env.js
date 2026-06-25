@@ -46,6 +46,9 @@ const OPTIONAL_KEYS = new Set([
   'MAIL_FROM',
   'EMAIL_VERIFY_TTL_HOURS',
   'PASSWORD_RESET_TTL_MINS',
+  'SENTRY_DSN',
+  'SENTRY_TRACES_SAMPLE_RATE',
+  'SENTRY_RELEASE',
 ]);
 
 // Load .env so this script can be run standalone (`npm run check:env`)

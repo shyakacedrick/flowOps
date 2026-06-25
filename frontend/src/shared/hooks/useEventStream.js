@@ -143,19 +143,134 @@ function useStream(urlFactory, { enabled = true, deps = [] } = {}) {
  *
  *   const stream = useOrgEventStream();
  *   useEffect(() => stream.on('queue:created', (q) => ...), []);
+ *
+ * IMPORTANT: Every component that calls this gets a handle to the SAME
+ * underlying EventSource. Browsers cap HTTP/1.1 connections per origin
+ * at ~6, and EventSource holds a persistent connection. If each consumer
+ * opened its own EventSource, a single page with 6+ consumers would
+ * exhaust the connection pool and block all regular API requests
+ * (refresh buttons hang forever). The singleton below is shared by every
+ * consumer; each consumer's `on(event, handler)` registers/unregisters
+ * its own listeners on that shared socket.
  */
+
+// ── Singleton org-stream socket ──────────────────────────────────────────
+// One EventSource for the entire app, lazily opened the first time any
+// component subscribes and never recreated until the token changes or
+// the network drops.
+let orgEs = null;
+let orgRetry = 0;
+let orgRetryTimer = null;
+let orgConnectedFor = null; // the token used to open the current socket
+// listeners: Map<eventName, Set<handler>>
+const orgListeners = new Map();
+// wrappers: Map<eventName, fn> — JSON-parsing wrapper attached to ES
+const orgWrappers = new Map();
+
+function orgDispatch(eventName, payload) {
+  const set = orgListeners.get(eventName);
+  if (!set) return;
+  for (const h of Array.from(set)) {
+    try { h(payload); } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn('[useOrgEventStream] handler error:', err);
+    }
+  }
+}
+
+function ensureOrgWrapper(eventName) {
+  if (orgWrappers.has(eventName)) return;
+  const wrapped = (ev) => {
+    let data = null;
+    try { data = ev.data ? JSON.parse(ev.data) : null; } catch { /* noop */ }
+    orgDispatch(eventName, data);
+  };
+  orgWrappers.set(eventName, wrapped);
+  if (orgEs) orgEs.addEventListener(eventName, wrapped);
+}
+
+function currentToken() {
+  try { return window.localStorage.getItem(STORAGE_KEYS.TOKEN); } catch { return null; }
+}
+
+function openOrgSocket() {
+  if (typeof window === 'undefined') return;
+  const token = currentToken();
+  if (!token) {
+    // No token yet — try again shortly. Browsers reconnect via 401 too.
+    orgRetryTimer = setTimeout(openOrgSocket, 1_000);
+    return;
+  }
+  // Already connected for this token? Reuse.
+  if (orgEs && orgConnectedFor === token) return;
+  if (orgEs) { try { orgEs.close(); } catch { /* noop */ } }
+
+  const url = `${BASE_URL}/events/org?token=${encodeURIComponent(token)}`;
+  const es = new EventSource(url, { withCredentials: false });
+  orgEs = es;
+  orgConnectedFor = token;
+
+  es.onopen = () => { orgRetry = 0; };
+  es.onerror = () => {
+    try { es.close(); } catch { /* noop */ }
+    if (orgEs === es) orgEs = null;
+    orgConnectedFor = null;
+    // Only reconnect if there are still subscribers.
+    if (orgListeners.size === 0) return;
+    const delay = Math.min(30_000, 1_000 * 2 ** orgRetry);
+    orgRetry += 1;
+    orgRetryTimer = setTimeout(openOrgSocket, delay);
+  };
+
+  // Re-attach all existing event wrappers on this fresh socket.
+  for (const [eventName, wrapped] of orgWrappers.entries()) {
+    es.addEventListener(eventName, wrapped);
+  }
+}
+
+function closeOrgSocketIfIdle() {
+  if (orgListeners.size > 0) return;
+  if (orgRetryTimer) { clearTimeout(orgRetryTimer); orgRetryTimer = null; }
+  if (orgEs) { try { orgEs.close(); } catch { /* noop */ } }
+  orgEs = null;
+  orgConnectedFor = null;
+  orgRetry = 0;
+}
+
 export function useOrgEventStream({ enabled = true } = {}) {
-  return useStream(
-    () => {
-      // Read the token at connect time so post-refresh reconnects pick up
-      // the new value automatically.
-      let token = null;
-      try { token = window.localStorage.getItem(STORAGE_KEYS.TOKEN); } catch { /* noop */ }
-      if (!token) return null;
-      return `${BASE_URL}/events/org?token=${encodeURIComponent(token)}`;
-    },
-    { enabled }
-  );
+  // Use a ref to keep the same `on` function identity for the lifetime
+  // of the consumer, so consumers' `useEffect(() => stream.on(...), [])`
+  // never re-runs across renders.
+  const apiRef = useRef(null);
+  if (apiRef.current === null) {
+    apiRef.current = {
+      on: (eventName, handler) => {
+        let set = orgListeners.get(eventName);
+        if (!set) { set = new Set(); orgListeners.set(eventName, set); }
+        set.add(handler);
+        ensureOrgWrapper(eventName);
+        // Make sure the socket is open.
+        if (!orgEs) openOrgSocket();
+        return () => {
+          const s = orgListeners.get(eventName);
+          if (!s) return;
+          s.delete(handler);
+          if (s.size === 0) orgListeners.delete(eventName);
+          // Don't close the socket on every unsubscribe — the next
+          // render is likely to subscribe again. Defer the idle check.
+          setTimeout(closeOrgSocketIfIdle, 0);
+        };
+      },
+    };
+  }
+
+  useEffect(() => {
+    if (!enabled) return undefined;
+    if (!orgEs) openOrgSocket();
+    return undefined;
+  }, [enabled]);
+
+  return apiRef.current;
 }
 
 /**

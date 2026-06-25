@@ -2,8 +2,9 @@
 //  OperationsPage — owner KPIs and per-queue health, real data
 // ----------------------------------------------------------------------------
 //  All numbers are sourced from /api/analytics/summary and /api/queues.
-//  Per-staff rankings remain an empty state until member-level performance
-//  tracking lands (no fabricated names).
+//  Per-staff rankings are derived from `summary.byStaff` (populated by the
+//  analytics aggregation once tickets are picked up by named staff). Until
+//  any staff has served a ticket, the section falls back to an empty state.
 // ============================================================================
 
 import { Link } from 'react-router-dom';
@@ -14,6 +15,24 @@ import EmptyState from '@/shared/components/EmptyState.jsx';
 import useAnalyticsSummary from '@/features/analytics/hooks/useAnalyticsSummary.js';
 import useQueues from '@/features/queue/hooks/useQueues.js';
 import { ROUTES } from '@/shared/constants/routes.js';
+
+// Build initials from a display name, e.g. "Jane Doe" → "JD".
+// Falls back to the first two letters of any single token, or "?".
+function initialsOf(name) {
+  if (!name || typeof name !== 'string') return '?';
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+// Medal accent for top-3 ranks; everyone else gets a neutral slate ring.
+const RANK_STYLES = [
+  'bg-amber-400/15 text-amber-200 ring-amber-300/40',   // 1st
+  'bg-slate-300/10 text-slate-200 ring-slate-300/30',   // 2nd
+  'bg-orange-500/15 text-orange-200 ring-orange-400/30',// 3rd
+];
+const RANK_FALLBACK = 'bg-white/[0.04] text-slate-300 ring-white/10';
 
 export default function OperationsPage() {
   const { summary } = useAnalyticsSummary({ range: '24h', pollMs: 30_000 });
@@ -32,6 +51,12 @@ export default function OperationsPage() {
 
   const activeQueues = queues.filter((q) => (q.status || 'active') === 'active');
   const totalQueues  = queues.length;
+
+  // Per-staff rankings. The backend already sorts by served desc and caps
+  // at 10. We normalise the efficiency bar against the top performer's
+  // served count so the leader always renders at 100%.
+  const staffRankings = Array.isArray(summary?.byStaff) ? summary.byStaff : [];
+  const topServed = staffRankings[0]?.served || 0;
 
   return (
     <HybridDashboardShell>
@@ -78,23 +103,85 @@ export default function OperationsPage() {
           <div className="flex flex-wrap items-baseline justify-between gap-3">
             <div>
               <h3 className="text-sm font-semibold text-white">Staff efficiency rankings</h3>
-              <p className="text-xs text-slate-400">Per-member performance unlocks once staff join your workspace</p>
+              <p className="text-xs text-slate-400">
+                {staffRankings.length > 0
+                  ? `Top ${staffRankings.length} operator${staffRankings.length === 1 ? '' : 's'} by tickets served in the last 24h`
+                  : 'Per-member performance unlocks once staff start serving tickets'}
+              </p>
             </div>
+            {staffRankings.length > 0 && (
+              <span className="rounded-full border border-white/[0.06] bg-white/[0.03] px-2.5 py-1 text-[10px] uppercase tracking-widest text-slate-300">
+                Live
+              </span>
+            )}
           </div>
 
           <div className="mt-2">
-            <EmptyState
-              icon={UserPlus}
-              tone="info"
-              size="sm"
-              title="No per-staff data yet"
-              message="Invite staff to your organization to start tracking served tickets, average handle time, and efficiency rankings per person."
-              cta={{
-                label: 'Invite team members',
-                variant: 'primary',
-                onClick: () => { window.location.href = ROUTES.owner.settings; },
-              }}
-            />
+            {staffRankings.length === 0 ? (
+              <EmptyState
+                icon={UserPlus}
+                tone="info"
+                size="sm"
+                title="No per-staff data yet"
+                message="Invite staff to your organization and have them pick up tickets to start tracking served counts, average handle time, and efficiency rankings per person."
+                cta={{
+                  label: 'Invite team members',
+                  variant: 'primary',
+                  onClick: () => { window.location.href = ROUTES.owner.settings; },
+                }}
+              />
+            ) : (
+              <ul className="mt-3 space-y-2">
+                {staffRankings.map((member, idx) => {
+                  const rankStyle = RANK_STYLES[idx] || RANK_FALLBACK;
+                  // Efficiency bar = served / top served. Always shows the
+                  // leader at 100%; everyone else proportional.
+                  const barPct = topServed > 0
+                    ? Math.max(4, Math.round((member.served / topServed) * 100))
+                    : 0;
+                  return (
+                    <li
+                      key={member.userId}
+                      className="flex items-center gap-3 rounded-2xl border border-white/[0.05] bg-white/[0.03] p-3"
+                    >
+                      <div
+                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-bold ring-1 ${rankStyle}`}
+                        title={`Rank #${idx + 1}`}
+                      >
+                        {initialsOf(member.name)}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-baseline justify-between gap-2">
+                          <p className="truncate text-sm font-semibold text-white">
+                            <span className="mr-1.5 text-[10px] font-normal text-slate-500">#{idx + 1}</span>
+                            {member.name}
+                          </p>
+                          <p className="shrink-0 text-xs tabular-nums text-slate-300">
+                            <span className="font-semibold text-white">{member.served}</span>
+                            <span className="ml-1 text-slate-500">served</span>
+                          </p>
+                        </div>
+                        <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-white/[0.04]">
+                          <div
+                            className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-emerald-400"
+                            style={{ width: `${barPct}%` }}
+                          />
+                        </div>
+                        <p className="mt-1 text-[10px] text-slate-500">
+                          Avg handle{' '}
+                          <span className="text-slate-300">
+                            {member.avgHandleMins != null ? `${member.avgHandleMins}m` : '—'}
+                          </span>
+                          {member.email && (
+                            <span className="ml-2 text-slate-600">· {member.email}</span>
+                          )}
+                        </p>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </div>
         </section>
 

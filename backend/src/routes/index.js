@@ -9,6 +9,10 @@ import analyticsRoutes from './analyticsRoutes.js';
 import publicRoutes from './publicRoutes.js';
 import userRoutes from './userRoutes.js';
 import eventsRoutes from './eventsRoutes.js';
+import platformSettingsRoutes from './platformSettingsRoutes.js';
+import featureFlagRoutes from './featureFlagRoutes.js';
+import notificationRuleRoutes from './notificationRuleRoutes.js';
+import subscriptionRoutes from './subscriptionRoutes.js';
 
 const router = Router();
 
@@ -32,6 +36,12 @@ router.use('/invites', inviteRoutes);
 router.use('/analytics', analyticsRoutes);
 router.use('/users', userRoutes);
 router.use('/events', eventsRoutes);
+// Admin-only configuration endpoints. Authorization is enforced inside
+// each router so we can mount them under the same /admin namespace.
+router.use('/admin/settings', platformSettingsRoutes);
+router.use('/admin/feature-flags', featureFlagRoutes);
+router.use('/admin/notification-rules', notificationRuleRoutes);
+router.use('/admin/subscriptions', subscriptionRoutes);
 router.use('/public', publicRoutes);
 
 export default router;

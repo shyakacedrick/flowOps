@@ -9,7 +9,7 @@ import { useCallback, useEffect, useState } from 'react';
 import activityApi from '@/services/activityApi.js';
 import { useOrgEventStream } from '@/shared/hooks/useEventStream.js';
 
-export function useActivities({ limit = 50, type, pollMs = 5000 } = {}) {
+export function useActivities({ limit = 50, type, actorId, pollMs = 5000 } = {}) {
   const [activities, setActivities] = useState([]);
   const [status, setStatus] = useState('idle');
   const [error, setError] = useState(null);
@@ -20,10 +20,19 @@ export function useActivities({ limit = 50, type, pollMs = 5000 } = {}) {
         setStatus('loading');
         setError(null);
       }
-      const res = await activityApi.list({ limit, type });
-      if (!res.ok) {
+      let res;
+      try {
+        res = await activityApi.list({ limit, type, actorId });
+      } catch (err) {
         if (!silent) {
-          setError(res.message || 'Failed to load activities');
+          setError(err?.message || 'Network error');
+          setStatus('error');
+        }
+        return;
+      }
+      if (!res?.ok) {
+        if (!silent) {
+          setError(res?.message || 'Failed to load activities');
           setStatus('error');
         }
         return;
@@ -31,7 +40,7 @@ export function useActivities({ limit = 50, type, pollMs = 5000 } = {}) {
       setActivities(Array.isArray(res.data) ? res.data : []);
       setStatus('ready');
     },
-    [limit, type]
+    [limit, type, actorId]
   );
 
   const refresh = useCallback(() => fetchOnce({ silent: false }), [fetchOnce]);
@@ -55,13 +64,20 @@ export function useActivities({ limit = 50, type, pollMs = 5000 } = {}) {
   }, [pollMs, fetchOnce]);
 
   // --- Live SSE updates ---------------------------------------------------
-  // Prepend new activity rows as they arrive. Respect the `type` filter and
-  // the `limit` so the feed stays bounded.
+  // Prepend new activity rows as they arrive. Respect the `type` filter,
+  // the optional `actorId` filter, and the `limit` so the feed stays bounded.
   const stream = useOrgEventStream();
   useEffect(() => {
     const off = stream.on('activity:new', (activity) => {
       if (!activity?._id) return;
       if (type && activity.type !== type) return;
+      if (actorId) {
+        // actorId may arrive as a string (raw) or populated object.
+        const incomingActorId = typeof activity.actorId === 'object'
+          ? activity.actorId?._id
+          : activity.actorId;
+        if (String(incomingActorId) !== String(actorId)) return;
+      }
       setActivities((prev) => {
         if (prev.some((a) => a._id === activity._id)) return prev;
         const next = [activity, ...prev];
@@ -70,7 +86,7 @@ export function useActivities({ limit = 50, type, pollMs = 5000 } = {}) {
     });
     return off;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [type, limit]);
+  }, [type, actorId, limit]);
 
   return { activities, status, error, refresh };
 }
